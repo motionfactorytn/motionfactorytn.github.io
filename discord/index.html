@@ -2973,7 +2973,7 @@ function dcCode(){const s=window.discordSdk;if(!window.IS_DISCORD||!s||!s.instan
   for(let i=0;i<k.length;i++){const c=k.charCodeAt(i);a=Math.imul(a^c,16777619)>>>0;b=(Math.imul(b,33)^c)>>>0}
   return ('DC'+a.toString(36)+b.toString(36)).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,14)}
 const DC={t:0,silent:false};
-function dcNote(t){let el=document.getElementById('dcnote');if(!el){el=document.createElement('div');el.id='dcnote';el.className='note';el.style.cssText='font-weight:800;margin-top:8px';const r=document.querySelector('#friends .mroot');if(r)r.appendChild(el);else return}el.textContent=t}
+function dcNote(t){let el=document.getElementById('dcnote');if(!el){el=document.createElement('div');el.id='dcnote';el.className='note';el.style.cssText='display:block;width:max-content;max-width:90%;margin:14px auto 0;padding:10px 18px;border-radius:16px;background:#fdf8ee;color:#4b5a6b;font:800 calc(17*var(--u,1px))/1.35 var(--ff,sans-serif);text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.12),inset 0 0 0 3px #e7dcc3';const r=document.querySelector('#friends .mroot');if(r)r.appendChild(el);else return}el.textContent=t}
 function dcJoin(silent){const c=dcCode();if(!c)return;DC.silent=!!silent;$('jc').value=c;netJoin()}
 function dcJoinErr(e){if(!dcCode()||!DC.silent)return false;
   if(e&&e.type==='peer-unavailable')dcNote('No room in this Discord activity yet – press Create room and your friends will join automatically.');
@@ -2988,6 +2988,7 @@ function dcOnShow(id){if(!dcCode())return;
   if(id!=='lobby'&&id!=='play'&&net.role==='client'&&net.mySlot<0)netStop()} // left the screen while still looking: stop
 function dcLobby(){const b=document.getElementById('bstartnow');if(!b)return;const on=!!dcCode();
   b.classList.toggle('hid',!(on&&net.role==='host'&&!net.started&&!net.starting&&cnt()>=2));
+  const lc=$('lcode');if(lc){lc.style.fontSize=on?'calc(26*var(--u))':'';lc.style.letterSpacing=on?'.08em':''} // the Discord code is longer: smaller so it fits the panel
   if(on)$('lhint').textContent=net.role==='host'?'Friends in this Discord activity join automatically. Press Start now when everybody is here.':'You are in the room of your Discord friends. The host starts the game.'}
 document.getElementById('bstartnow').onclick=()=>{if(net.role!=='host'||net.started||net.starting||cnt()<2)return;net.cap=cnt();lobbyBroadcast();checkFull()};
 function snap(){return{k:'s',T:tvSnap(),F:ctfSnap(),FL:flSnap(),vs:vsOn?[VSX.win,VSX.round,...VSX.pts]:0,ch:chList(),cs:cosList(),tm:r1(time),w:won?(coinWin?2:1):0,C:coinSnap(),G:gunSnap(),S:swordSnap(),W:wiresSnap(),b:best,P:players.map(q=>q.active?[r1(q.p.x),r1(q.p.y),r1(q.v.x),r1(q.v.y),Math.round(q.power*100)/100,q.done?1:0,q.inp.pow?1:0,
