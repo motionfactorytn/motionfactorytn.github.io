@@ -4263,6 +4263,7 @@ function begin(target){
   applyRoom('floor');                                            // private level + fresh single local player (the real reset() runs inside)
   document.querySelectorAll('.scr').forEach(e=>e.classList.add('hid'));$('pp').classList.add('hid');
   scene='play';                                                  // the game loop now runs the REAL physics for us (HUD / pause menu stay hidden)
+  try{bgmPause();gmSync()}catch(e){}                             // only ONE music: stop the menu track, start the in-game one
   el.root.classList.remove('ok','m-move','m-grab','m-done','m-roll','m-swing','m-pow');el.root.classList.add('on');
   void el.root.offsetWidth;el.root.classList.add('show');
   addEventListener('keydown',onKey,true);addEventListener('pointerdown',onPtr,true);addEventListener('pointermove',onPtr,true);
