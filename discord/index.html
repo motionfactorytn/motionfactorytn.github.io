@@ -473,9 +473,9 @@ div.mwallet{cursor:default}div.mwallet:hover{transform:none}
 <div id="lcopyrow"><button id="bcopy" class="mpill">Copy code</button></div>
 <div class="flab">Players <b id="lcnt" class="fcnt"></b></div><div id="ldots"></div>
 <div class="flab">Your character</div><div class="pick" data-pick></div>
-<p class="fhint">The game starts automatically when the room is full.</p>
+<p class="fhint" id="lhint">The game starts automatically when the room is full.</p>
 <div class="fband"><div class="ftitle">Waiting room<span class="wdots"><i></i><i></i><i></i></span></div></div></div>
-<div class="mutil"><button id="bleave" class="mpill">Leave room</button></div><div id="lmsg" class="note"></div></div></div>
+<div class="mutil"><button id="bleave" class="mpill">Leave room</button><button id="bstartnow" class="mpill gold hid">Start now ▶</button></div><div id="lmsg" class="note"></div></div></div>
 <div id="char" class="scr hid"><div class="mroot"><img id="clogo" class="hid" alt=""><b id="cname" class="hid"></b>
 <div class="cs-grid"><div class="cs-rows">
 <div class="mwrap" style="--cw:450;--d:.05s;--fl:5.6s;--r0:-5deg"><div class="cs-row" data-k="cup" style="--c:#f7f5b0"><div class="cs-pill pill-cup"></div><button type="button" class="cs-arr l" data-d="-1" aria-label="Previous cup"></button><button type="button" class="cs-box"><span class="cs-in"></span></button><button type="button" class="cs-arr r" data-d="1" aria-label="Next cup"></button></div></div>
@@ -2459,7 +2459,7 @@ function draw(){
 const $=id=>document.getElementById(id);
 function setMsg(id,t){$(id).textContent=t||''}
 function show(id){scene=id;$('pp').classList.add('hid');document.querySelectorAll('.scr').forEach(e=>e.classList.add('hid'));
-  if(id!=='play')$(id).classList.remove('hid');if(id==='lobby')lobbyUI.p=0;$('hud').style.display=id==='play'?'block':'none';walletUI();acctOnShow(id);vsUI(id);if(typeof bgmPause==='function'){if(id==='play')bgmPause();else bgmPlay()}if(typeof gmSync==='function')gmSync()}
+  if(id!=='play')$(id).classList.remove('hid');if(id==='lobby')lobbyUI.p=0;$('hud').style.display=id==='play'?'block':'none';walletUI();acctOnShow(id);vsUI(id);if(typeof bgmPause==='function'){if(id==='play')bgmPause();else bgmPlay()}if(typeof gmSync==='function')gmSync();if(typeof dcOnShow==='function')dcOnShow(id)}
 function go(id){
   if(id==='friends-back')id=tvMode?'tvgames':'menu'; // Back from Create / Join: Team Versus -> mini-game picker, other modes -> main menu
   if(id==='tvs'||id==='tvgames'){tvMode=true;vsMode=false;ctfMode=false;swMode=false;id='tvgames'} // TEAM VERSUS: choose Basketball / Get the Flag first
@@ -2899,7 +2899,7 @@ function lobbyUI(){const n=net.role==='host'?cnt():net.n;
   $('lcode').textContent=net.code||'…';$('lcnt').textContent=n+' / '+net.cap;
   const lc=net.role==='host'?lobbyChars():(net.lch||[]);
   $('ldots').innerHTML=lc.slice(0,net.cap).map((c,i)=>'<span class="ldot'+(i>=(lobbyUI.p||0)?' new':'')+'"><img alt="" src="'+CHARS[c].src+'"></span>').join('')+Array.from({length:Math.max(0,net.cap-lc.length)},()=>'<span class="ldot empty"><i>?</i></span>').join('');lobbyUI.p=lc.length;tvLobby();
-  if(n>=net.cap&&net.cap)setMsg('lmsg','Room full – starting…')}
+  if(n>=net.cap&&net.cap)setMsg('lmsg','Room full – starting…');if(typeof dcLobby==='function')dcLobby()}
 function lobbyBroadcast(){lobbyUI();for(const k in net.conns){const c=net.conns[k];if(c.open)c.send({k:'lobby',n:cnt(),cap:net.cap,lc:lobbyChars()})}}
 function checkFull(){
   if(net.role!=='host'||net.started||net.starting||cnt()<net.cap)return;
@@ -2922,10 +2922,10 @@ function netHost(n){
   if(typeof Peer==='undefined'){setMsg('cmsg','Online library failed to load.');return}
   const tvBuilt=tvMode&&(swMode||!(ctfMode?ctfCheck():tvCheck())); // Swing Wire Ball: always the level the host picked in CREATE ROOM // no basketball level loaded by the player -> use the built-in Team Versus level
   netStop();if(tvBuilt&&!(ctfMode?ctfLoadBuiltin():(swMode?swLoadBuiltin(TVS.lvl):tvLoadBuiltin(0)))){setMsg('cmsg','Could not load the Team Versus level.');return}cap=n;
-  const code=Math.random().toString(36).slice(2,6).toUpperCase().padEnd(4,'X'),peer=new Peer('blobswing-'+code);
+  const code=dcCode()||Math.random().toString(36).slice(2,6).toUpperCase().padEnd(4,'X'),peer=new Peer('blobswing-'+code);
   if(tvMode){tvBegin();CTF.on=!!ctfMode;if(CTF.on)TV.max=1;SW.on=!!swMode&&!CTF.on;if(SW.on){TV.limit=0;if(![1,3,5].includes(TV.max))TV.max=3}}else if(vsMode)vsBegin();else hostLevel();net={role:'host',peer,conns:{},mySlot:0,f:0,code,cap:n,started:false,gameMode:tvGameMode()};N=6;reset();
   show('lobby');setMsg('lmsg','Share the code with your friends');lobbyUI();
-  peer.on('error',e=>{if(e.type==='unavailable-id')netHost(n);else{setMsg('lmsg','Network error: '+e.type)}});
+  peer.on('error',e=>{if(e.type==='unavailable-id'){if(dcCode()){setMsg('lmsg','Joining the room of your Discord friends…');dcJoin(false);return}netHost(n)}else{setMsg('lmsg','Network error: '+e.type)}});
   peer.on('connection',c=>{
     const slot=net.started?0:[...Array(net.cap-1)].map((_,i)=>i+1).find(i=>!net.conns[i]);
     if(!slot){c.on('open',()=>{c.send({k:'full'});setTimeout(()=>c.close(),300)});return}
@@ -2944,7 +2944,7 @@ function netJoin(){
   if(code.length<4){setMsg('jmsg','Enter the room code');return}
   netStop();vsOn=vsMode;const peer=new Peer();
   net={role:'client',peer,conns:{},mySlot:-1,f:0,code,cap:0,n:0};N=6;reset();setMsg('jmsg','Connecting…');
-  peer.on('error',e=>setMsg('jmsg',e.type==='peer-unavailable'?'Room not found':'Network error: '+e.type));
+  peer.on('error',e=>{if(dcJoinErr(e))return;setMsg('jmsg',e.type==='peer-unavailable'?'Room not found':'Network error: '+e.type)});
   peer.on('open',()=>{
     const c=peer.connect('blobswing-'+code,{serialization:'json'});net.host=c;
     c.on('data',m=>{
@@ -2967,6 +2967,29 @@ function netJoin(){
     setTimeout(()=>{if(net.role==='client'&&net.mySlot<0)setMsg('jmsg','Could not reach room '+code)},9000);
   });
 }
+/* ---- Discord auto rooms ---- */
+function dcCode(){const s=window.discordSdk;if(!window.IS_DISCORD||!s||!s.instanceId)return null;
+  const k=String(s.instanceId)+'|'+(tvMode?(ctfMode?'ctf':(swMode?'wire':'bb')):(vsMode?'vs':'coop'));let a=2166136261,b=5381;
+  for(let i=0;i<k.length;i++){const c=k.charCodeAt(i);a=Math.imul(a^c,16777619)>>>0;b=(Math.imul(b,33)^c)>>>0}
+  return ('DC'+a.toString(36)+b.toString(36)).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,14)}
+const DC={t:0,silent:false};
+function dcNote(t){let el=document.getElementById('dcnote');if(!el){el=document.createElement('div');el.id='dcnote';el.className='note';el.style.cssText='font-weight:800;margin-top:8px';const r=document.querySelector('#friends .mroot');if(r)r.appendChild(el);else return}el.textContent=t}
+function dcJoin(silent){const c=dcCode();if(!c)return;DC.silent=!!silent;$('jc').value=c;netJoin()}
+function dcJoinErr(e){if(!dcCode()||!DC.silent)return false;
+  if(e&&e.type==='peer-unavailable')dcNote('No room in this Discord activity yet – press Create room and your friends will join automatically.');
+  return true} // quiet attempt: no error message on the Join screen
+function dcPoll(){clearTimeout(DC.t);if(scene!=='friends'||!dcCode())return;
+  if(net.role==='local'||(net.role==='client'&&net.mySlot<0))dcJoin(true);
+  DC.t=setTimeout(dcPoll,5000)} // somebody may create the room a bit later: keep looking while this screen is open
+function dcOnShow(id){if(!dcCode())return;
+  if(id==='friends'){dcNote('Looking for your Discord friends\' room…');dcPoll();return}
+  clearTimeout(DC.t);
+  if(id==='join'&&net.role==='local'){setMsg('jmsg','Joining the room of this Discord activity…');dcJoin(false);return}
+  if(id!=='lobby'&&id!=='play'&&net.role==='client'&&net.mySlot<0)netStop()} // left the screen while still looking: stop
+function dcLobby(){const b=document.getElementById('bstartnow');if(!b)return;const on=!!dcCode();
+  b.classList.toggle('hid',!(on&&net.role==='host'&&!net.started&&!net.starting&&cnt()>=2));
+  if(on)$('lhint').textContent=net.role==='host'?'Friends in this Discord activity join automatically. Press Start now when everybody is here.':'You are in the room of your Discord friends. The host starts the game.'}
+document.getElementById('bstartnow').onclick=()=>{if(net.role!=='host'||net.started||net.starting||cnt()<2)return;net.cap=cnt();lobbyBroadcast();checkFull()};
 function snap(){return{k:'s',T:tvSnap(),F:ctfSnap(),FL:flSnap(),vs:vsOn?[VSX.win,VSX.round,...VSX.pts]:0,ch:chList(),cs:cosList(),tm:r1(time),w:won?(coinWin?2:1):0,C:coinSnap(),G:gunSnap(),S:swordSnap(),W:wiresSnap(),b:best,P:players.map(q=>q.active?[r1(q.p.x),r1(q.p.y),r1(q.v.x),r1(q.v.y),Math.round(q.power*100)/100,q.done?1:0,q.inp.pow?1:0,
   ...q.hands.flatMap(h=>[r1(h.x),r1(h.y),h.g?1:0]),Math.round(q.ang*100)/100,Math.round((q.tilt||0)*100)/100,Math.round((q.hg||0)*100)/100]:0)}}
 function applySnap(m){FT.snapsIn=(FT.snapsIn||0)+1; // (perf overlay: snapshots received)
