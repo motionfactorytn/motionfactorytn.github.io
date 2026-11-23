@@ -446,7 +446,7 @@ div.mwallet{cursor:default}div.mwallet:hover{transform:none}
 <div class="mwrap" style="--cw:330;--d:.26s;--fl:5.7s;--fr:.5deg;--r0:5deg"><button class="mcard mc-tv" data-mgo="tvs" aria-label="Team Versus"></button></div>
 <div class="mwrap" style="--cw:329;--d:.34s;--fl:4.9s;--fr:-.6deg;--r0:-6deg"><button class="mcard mc-created" data-mgo="credits" aria-label="Created By"></button></div></div>
 </div>
-<div class="mutil"><button data-go="settings" class="mpill">Settings ⚙</button><button id="btut" type="button" class="mpill">Tutorial 🎓</button><button id="bctl" type="button" class="mpill">Controls 🎮</button><button id="bdeflevel" class="mpill hid">Back to campaign</button><button data-go="gloves" class="mpill">Gloves…</button><button data-go="shop" class="mpill">Shop</button></div>
+<div class="mutil"><button id="binvite" type="button" class="mpill minv"><span class="minv-ic">👋</span>Invite friends<b class="minv-b">+5 <i class="coinic"></i></b></button><button data-go="settings" class="mpill">Settings ⚙</button><button id="btut" type="button" class="mpill">Tutorial 🎓</button><button id="bctl" type="button" class="mpill">Controls 🎮</button><button id="bdeflevel" class="mpill hid">Back to campaign</button><button data-go="shop" class="mpill mshop"><span class="msh-ic">🛍️</span>Shop</button></div>
 <div id="lvnote" class="note"></div></div></div>
 <div id="tvgames" class="scr hid"><div class="mroot"><div class="vsb hid">VERSUS</div><div class="mgrid" id="tgrid" style="flex-direction:column;align-items:center">
 <div class="mwrap" style="--cw:330;--d:.05s;--fl:5.4s;--r0:-4deg"><button class="mcard mc-bball" data-mgo="tvbb" aria-label="Basketball"></button></div>
@@ -497,9 +497,9 @@ div.mwallet{cursor:default}div.mwallet:hover{transform:none}
 <div id="shnote" class="note"></div></div></div>
 <div id="credits" class="scr fx hid"><div class="mroot"><div class="fpanel">
 <img id="crlogo" class="crfrog" alt="" title="Boing!"><div class="crname">Motion Factory</div>
-<div class="flab crfl">Follow us</div><div class="crsoc">
-<a class="soc" href="https://www.facebook.com/profile.php?id=61577984788033" target="_blank" rel="noopener" aria-label="Facebook"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#1877f2"/><path d="M15.6 7.4h-1.9c-.7 0-1.1.4-1.1 1.1v2h3l-.45 3h-2.55V21h-3.1v-7.5H7.4v-3h2.1V8.1c0-2.3 1.4-3.6 3.6-3.6h2.5z" fill="#fff"/></svg><span>Facebook</span></a>
-<a class="soc" href="https://discord.gg/dU73DgkAkg" target="_blank" rel="noopener" aria-label="Discord"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#5865f2"/><path d="M6.6 7.9c1.5-.9 3-1.2 3-1.2l.4.8c1.3-.2 2.7-.2 4 0l.4-.8s1.5.3 3 1.2c1.5 2.3 2 4.9 1.8 7.7-1.4 1.1-2.8 1.7-4 2l-.85-1.4c.5-.2 1-.45 1.45-.75-2.5 1.15-5.6 1.15-8.1 0 .45.3.95.55 1.45.75l-.85 1.4c-1.2-.3-2.6-.9-4-2-.25-2.8.3-5.4 1.8-7.7z" fill="#fff"/><circle cx="9.7" cy="12.6" r="1.25" fill="#5865f2"/><circle cx="14.3" cy="12.6" r="1.25" fill="#5865f2"/></svg><span>Discord</span></a></div>
+<div class="flab crfl">Join our server</div><div class="crsoc">
+
+<a class="soc dcjoin" id="bdcjoin" href="https://discord.gg/dU73DgkAkg" target="_blank" rel="noopener" aria-label="Join our Discord server"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#5865f2"/><path d="M6.6 7.9c1.5-.9 3-1.2 3-1.2l.4.8c1.3-.2 2.7-.2 4 0l.4-.8s1.5.3 3 1.2c1.5 2.3 2 4.9 1.8 7.7-1.4 1.1-2.8 1.7-4 2l-.85-1.4c.5-.2 1-.45 1.45-.75-2.5 1.15-5.6 1.15-8.1 0 .45.3.95.55 1.45.75l-.85 1.4c-1.2-.3-2.6-.9-4-2-.25-2.8.3-5.4 1.8-7.7z" fill="#fff"/><circle cx="9.7" cy="12.6" r="1.25" fill="#5865f2"/><circle cx="14.3" cy="12.6" r="1.25" fill="#5865f2"/></svg><span>Join our Discord</span><b class="dcj-b" id="dcjb">+30 <i class="coinic"></i></b></a></div>
 <div class="fband"><div class="ftitle">Created by</div></div></div>
 <div class="mutil"><button data-go="menu" class="mpill">Back</button></div></div></div>
 <div id="login" class="scr fx hid"><div class="mroot"><div class="fpanel">
@@ -5149,6 +5149,31 @@ window.__extra={levelsWin,giftWin,tick,reset:()=>{EXS={ads:0,on:false};exSave();
 })();
 </script>
 <!-- v90 (web / itch.io): CONTROLS SETTINGS window – how to play with mouse + keyboard (keys can be changed) and with a controller -->
+<style id="dc-extra-css">
+.mpill.minv{position:relative;background:linear-gradient(120deg,#5865f2,#8b5cf6,#ec4899,#5865f2);background-size:300% 100%;color:#fff;box-shadow:0 4px 0 #3c3fb4;animation:minvGrad 5s linear infinite,minvGlow 2s ease-in-out infinite;padding-right:26px}
+.mpill.minv:hover{box-shadow:0 7px 0 #3c3fb4}.mpill.minv:active{box-shadow:0 1px 0 #3c3fb4}
+.minv-ic{display:inline-block;margin-right:7px;transform-origin:70% 80%;animation:minvWave 1.8s ease-in-out infinite}
+.minv-b{position:absolute;top:-11px;right:-12px;display:inline-flex;align-items:center;gap:2px;background:#ffc933;color:#6b4d00;border-radius:999px;padding:3px 7px;font:900 12px/1 var(--ff,sans-serif);box-shadow:0 2px 0 #d9a514;animation:minvBob 1.3s ease-in-out infinite}
+.minv-b .coinic,.dcj-b .coinic{width:14px;height:14px}
+@keyframes minvGrad{to{background-position:300% 0}}
+@keyframes minvGlow{0%,100%{filter:drop-shadow(0 0 0 rgba(139,92,246,0))}50%{filter:drop-shadow(0 0 10px rgba(236,72,153,.75))}}
+@keyframes minvWave{0%,60%,100%{transform:rotate(0)}10%,30%{transform:rotate(18deg)}20%,40%{transform:rotate(-10deg)}}
+@keyframes minvBob{50%{transform:translateY(-4px) scale(1.08)}}
+.mpill.mshop{position:relative;overflow:hidden;background:linear-gradient(135deg,#ffb020,#ff5f6d 55%,#c04ee8);color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.18);box-shadow:0 4px 0 #b23a6b}
+.mpill.mshop:hover{box-shadow:0 7px 0 #b23a6b}.mpill.mshop:active{box-shadow:0 1px 0 #b23a6b}
+.mpill.mshop::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.65),transparent);transform:skewX(-20deg);animation:mshopShine 3s ease-in-out infinite}
+.msh-ic{display:inline-block;margin-right:7px;animation:mshopWiggle 2.4s ease-in-out infinite}
+@keyframes mshopShine{0%,55%{left:-60%}100%{left:130%}}
+@keyframes mshopWiggle{0%,70%,100%{transform:rotate(0) scale(1)}78%{transform:rotate(-14deg) scale(1.2)}86%{transform:rotate(12deg) scale(1.2)}94%{transform:rotate(-6deg)}}
+.soc.dcjoin{position:relative}
+.soc.dcjoin svg{animation:dcjPulse 1.8s ease-in-out infinite}
+.dcj-b{display:inline-flex;align-items:center;gap:3px;margin-top:2px;background:#ffc933;color:#6b4d00;border-radius:999px;padding:4px 9px;font:900 calc(14*var(--u,1px))/1 var(--ff,sans-serif);box-shadow:0 2px 0 #d9a514}
+.dcj-b.done{background:#4fd98a;color:#0f4a2a;box-shadow:0 2px 0 #2fa866}
+@keyframes dcjPulse{50%{transform:scale(1.08)}}
+#dctoast{position:fixed;left:50%;top:18px;z-index:400;transform:translate(-50%,-140%);max-width:90vw;padding:12px 20px;border-radius:18px;background:#fdf8ee;color:#3b4a6b;font:900 16px/1.35 ui-rounded,"Nunito",system-ui,sans-serif;text-align:center;box-shadow:0 6px 0 rgba(0,0,0,.15),inset 0 0 0 3px #ffc933;transition:transform .45s cubic-bezier(.2,1.5,.4,1);pointer-events:none}
+#dctoast.on{transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){.mpill.minv,.minv-ic,.minv-b,.mpill.mshop::after,.msh-ic,.soc.dcjoin svg{animation:none}}
+</style>
 <style id="ctl-css">
 #ctlwin{position:fixed;inset:0;z-index:170;display:none;align-items:center;justify-content:center;background:rgba(20,28,44,.72);--ff:ui-rounded,"Nunito","Arial Rounded MT Bold",system-ui,sans-serif;font-family:var(--ff)}
 #ctlwin.on{display:flex;animation:ctlFade .25s ease-out both}
@@ -5187,7 +5212,7 @@ window.__extra={levelsWin,giftWin,tick,reset:()=>{EXS={ads:0,on:false};exSave();
 </style>
 <div id="ctlwin" role="dialog" aria-modal="true" aria-label="Controls Settings"><div class="cpan">
   <div class="ctop"><div class="ctitle">CONTROLS SETTINGS</div>
-    <div class="ctabs"><button type="button" class="ctab on" data-p="kb">🖱️ Mouse + Keyboard</button><button type="button" class="ctab" data-p="pad">🎮 Controller</button></div></div>
+    <div class="ctabs"><button type="button" class="ctab on" data-p="kb">🖱️ Mouse + Keyboard</button><button type="button" class="ctab" data-p="pad">🎮 Controller</button><button type="button" class="ctab" data-p="gl">🧤 Gloves</button></div></div>
   <div class="cbody">
     <div class="cpage on" data-p="kb">
       <h4>🖱️ Mouse</h4>
@@ -5201,6 +5226,7 @@ window.__extra={levelsWin,giftWin,tick,reset:()=>{EXS={ads:0,on:false};exSave();
       <div class="ctip">💡 Mouse and keyboard work together: aim with the mouse <b>or</b> the direction keys, grab with the clicks <b>or</b> the hand keys.<br>
         Grab a platform, push a direction to <b>swing</b>, hold <b>Power</b> to charge, then let go = <b>POWER JUMP</b>!</div>
     </div>
+    <div class="cpage" data-p="gl" id="ctlgl"><h4>🧤 Your gloves</h4><p style="font:700 14px/1.4 var(--ff);margin:0 0 6px">Use the slider to change the size of your gloves.</p></div>
     <div class="cpage" data-p="pad">
       <div class="pad"><svg viewBox="0 0 320 150" width="300" aria-hidden="true">
         <path d="M70 30h180c30 0 48 30 56 70 6 30-14 45-34 30l-30-26H100l-30 26c-20 15-40 0-34-30 8-40 26-70 34-70z" fill="#3b4a6b"/>
@@ -5269,5 +5295,84 @@ window.__controls={open,close,keys:()=>Object.assign({},KB)};
 })();
 </script>
 
+<script id="dc-extra-js">/* Discord version only: invite rewards, Discord server reward, gloves inside Controls Settings */
+(function(){
+const $id=id=>document.getElementById(id);
+function dcToast(t,ms){let el=$id('dctoast');if(!el){el=document.createElement('div');el.id='dctoast';document.body.appendChild(el)}
+  el.textContent=t;el.classList.add('on');clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),ms||3800)}
+window.dcToast=dcToast;
+const acc=()=>(typeof acctA!=='undefined'&&acctA)?acctA:null;
+const isDc=()=>{const a=acc();return !!(a&&a.mode==='discord')};
+function lsGet(k,d){try{const v=JSON.parse(ACCT_LS.getItem(k)||'null');return v==null?d:v}catch(e){return d}}
+function lsSet(k,v){try{ACCT_LS.setItem(k,JSON.stringify(v))}catch(e){}}
+function give(n,why){try{walletGain(n)}catch(e){}try{if(typeof shUpdate==='function')shUpdate()}catch(e){}try{uiBlip&&uiBlip(880,1320,.08,'triangle',.06)}catch(e){}dcToast('+'+n+' coins! '+why)}
+
+/* ---- gloves: the size slider now lives in Controls Settings > Gloves ---- */
+try{const page=$id('ctlgl'),sz=$id('glsize'),pv=$id('glpv');
+  if(page&&sz&&pv){const lab=sz.closest('label'),cap=pv.nextElementSibling;if(lab)page.appendChild(lab);page.appendChild(pv);if(cap)page.appendChild(cap)}
+  const t=document.querySelector('#ctlwin .ctab[data-p="gl"]');if(t)t.addEventListener('click',()=>{try{gloveUI()}catch(e){}})}catch(e){console.warn('[gloves]',e)}
+
+/* ---- Discord SDK authentication (needed for the invite window, links and to see who joins) ---- */
+const DCA={auth:null,busy:null,watch:false,known:new Set(),me:'',inviteAt:0};
+const tokKey=()=>'cf.dctok.'+(acc()?acc().sub:'');
+async function dcAuth(){if(DCA.auth)return DCA.auth;if(DCA.busy)return DCA.busy;
+  DCA.busy=(async()=>{const sdk=window.discordSdk;if(!sdk)throw new Error('Discord is not ready');await window.discordReady;
+    if(!isDc())throw new Error('signin');
+    let tok='';try{const o=JSON.parse(ACCT_LS.raw.getItem(tokKey())||'null');if(o&&o.t&&o.exp>Date.now())tok=o.t}catch(e){}
+    if(tok){try{DCA.auth=await sdk.commands.authenticate({access_token:tok});DCA.me=String(DCA.auth.user&&DCA.auth.user.id||'');return DCA.auth}catch(e){tok=''}}
+    const r=await sdk.commands.authorize({client_id:'1574397539543814317',response_type:'code',state:'',prompt:'none',scope:['identify']});
+    const f=await fetch(SB_CFG.url+'/functions/v1/smart-function',{method:'POST',headers:{apikey:SB_CFG.key,'Content-Type':'application/json'},body:JSON.stringify({code:r&&r.code||''})});
+    const j=await f.json().catch(()=>({}));if(!f.ok||!j.access_token)throw new Error(j&&j.error||('HTTP '+f.status));
+    if(!j.discord_token)throw new Error('server update needed (smart-function)');
+    try{if(acc()&&acc().sub==='dc'+String(j.discord&&j.discord.id||''))sbPut(sbSess(j,acc().sub))}catch(e){}
+    try{ACCT_LS.raw.setItem(tokKey(),JSON.stringify({t:j.discord_token,exp:Date.now()+5*864e5}))}catch(e){}
+    DCA.auth=await sdk.commands.authenticate({access_token:j.discord_token});DCA.me=String(DCA.auth.user&&DCA.auth.user.id||'');return DCA.auth})();
+  try{return await DCA.busy}finally{DCA.busy=null}}
+
+/* ---- invite rewards: +5 coins for every Discord friend who joins your activity after you invited (each friend counts once, ever) ---- */
+const INV='blobswing.dcinv';
+function onPeople(list){const now=Date.now(),live=DCA.inviteAt&&now-DCA.inviteAt<3600e3;let got=0,names=[];
+  const done=lsGet(INV,[]);
+  for(const p of list||[]){const id=String(p&&p.id||'');if(!id||DCA.known.has(id))continue;DCA.known.add(id);
+    if(!live||id===DCA.me||done.includes(id))continue;
+    done.push(id);got+=5;names.push(p.global_name||p.nickname||p.username||'A friend')}
+  if(got){lsSet(INV,done.slice(-1000));give(got,names.join(', ')+(names.length>1?' joined your game':' joined your game'))}}
+async function dcWatch(){if(DCA.watch)return;const sdk=window.discordSdk;
+  const r=await sdk.commands.getInstanceConnectedParticipants();for(const p of (r&&r.participants)||[])DCA.known.add(String(p.id));
+  if(DCA.me)DCA.known.add(DCA.me);
+  await sdk.subscribe('ACTIVITY_INSTANCE_PARTICIPANTS_UPDATE',e=>onPeople(e&&e.participants));DCA.watch=true}
+async function dcInvite(){const sdk=window.discordSdk;
+  if(!window.IS_DISCORD||!sdk){dcToast('Open Crazy Frogs inside Discord to invite your friends.');return}
+  let authed=false,why='';
+  if(isDc()){try{await dcAuth();await dcWatch();authed=true}catch(e){why=String(e&&e.message||e);console.warn('[invite] auth',e)}}
+  try{await window.discordReady;await sdk.commands.openInviteDialog()}
+  catch(e){console.warn('[invite]',e);
+    if(!isDc()){dcToast('Sign in with Discord first, then invite your friends.',4500);try{go('account')}catch(_){}}
+    else dcToast('Could not open the invite window'+(why?' ('+why.slice(0,90)+')':'')+'. Please try again.',5000);
+    return}
+  if(authed){DCA.inviteAt=Date.now();dcToast('Invite sent? You get +5 coins for every friend who joins!')}
+  else if(!isDc())setTimeout(()=>dcToast('Tip: sign in with Discord to earn +5 coins for every friend who joins!',4500),900)
+  else dcToast('Invite window opened – but rewards are off right now'+(why?' ('+why.slice(0,80)+')':''),5000)}
+const ib=$id('binvite');
+if(ib){if(!window.IS_DISCORD)ib.remove();else ib.onclick=()=>{try{uiBlip&&uiBlip(700,1050,.06,'sine',.05)}catch(e){}dcInvite()}}
+
+/* ---- "Join our Discord server": +30 coins, once ---- */
+const J1='blobswing.dcjoin30',J2='cf.dcjoin30';
+const joined=()=>!!(lsGet(J1,0)||(()=>{try{return ACCT_LS.raw.getItem(J2)}catch(e){return null}})());
+function jbUI(){const b=$id('dcjb');if(!b)return;if(joined()){b.classList.add('done');b.textContent='✓ Thanks!'}}
+jbUI();
+async function openLink(url){const sdk=window.discordSdk;
+  if(window.IS_DISCORD&&sdk){await window.discordReady;
+    try{const r=await sdk.commands.openExternalLink({url});return !(r&&r.opened===false)}
+    catch(e){if(!isDc())throw e;await dcAuth();const r=await sdk.commands.openExternalLink({url});return !(r&&r.opened===false)}}
+  const w=window.open(url,'_blank');return !!w}
+const jl=$id('bdcjoin');
+if(jl)jl.addEventListener('click',async e=>{e.preventDefault();let ok=false;
+  try{ok=await openLink(jl.href)}catch(err){console.warn('[join]',err);dcToast(isDc()?'Could not open the link. Please try again.':'Sign in with Discord first, then try again.',4500);return}
+  if(!ok)return;
+  if(!joined()){lsSet(J1,1);try{ACCT_LS.raw.setItem(J2,'1')}catch(e){}give(30,'Thanks for joining our Discord server!');jbUI()}});
+window.__dcExtra={dcAuth,dcInvite,onPeople,DCA};
+})();
+</script>
 </body>
 </html>
