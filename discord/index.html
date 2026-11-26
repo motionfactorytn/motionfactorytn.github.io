@@ -4665,7 +4665,7 @@ function draw(t){
 function tick(now){
   if(!T)return;T.raf=requestAnimationFrame(tick);
   const dt=Math.min(.05,Math.max(0,(now-T.last)/1000));T.last=now;
-  try{if(scene!=='play'){T.ro++;if(T.ro>3){finish('error');return}}else T.ro=0;update(dt);if(T)draw(now/1000);try{thBarGlove(now/1000);thAheadSpot(now/1000)}catch(e){}if(T)try{tapHand(now/1000)}catch(e){console.warn('[tap hand]',e);tapHide()}if(T)try{coach(now/1000)}catch(e){console.warn('[coach]',e);coHide()}}
+  try{if(scene!=='play'){T.ro++;if(T.ro>3){finish('error');return}}else T.ro=0;update(dt);if(T)draw(now/1000);try{thBarGlove(now/1000);thAheadSpot(now/1000);thForgotSpot(now/1000)}catch(e){}if(T)try{tapHand(now/1000)}catch(e){console.warn('[tap hand]',e);tapHide()}if(T)try{coach(now/1000)}catch(e){console.warn('[coach]',e);coHide()}}
   catch(e){console.warn('[tutorial] error – falling back to the game',e);if(T){T.ending=false;finish('error')}}}
 
 /* ---------- DISCORD: tap hand on the L / R touch buttons (they toggle: tap = grab, tap again = let go) ---------- */
@@ -4735,7 +4735,12 @@ function thTarget(st,pl){                                         // which butto
   if(st===3){const k=freeSide()<0?'l':'r';return mi[k]?null:{k,m:'cycle'}}
   if(st===5)return(mi.l||mi.r)?null:{k:'r',m:'cycle'};
   if(st===4){const fh=floorHands(pl);if(fh.length!==2)return null;const bk=fh.reduce((a,b)=>b.ax<a.ax?b:a),k=bk.side<0?'l':'r';return mi[k]?{k,m:'off'}:null}
-  if(st===7||st===W0+3){const k=mi.r?'r':mi.l?'l':'';return k?{k,m:'off'}:{k:'r',m:'on'}}
+  const free=freeSide()<0?'l':'r';                                 // the SAME hand the coach bubble names
+  if(st===7){const k=mi.r?'r':mi.l?'l':'';
+    if(k&&holdOn(pl,BAR1))return CO.go?{k,m:'off'}:null;          // hanging: the hand taps only at the "NOW!" moment (no tapping while "wait for it")
+    if(!T.trap&&!holdOn(pl,BAR1))return{k:'r',m:'on'};            // standing on the floor: grab the bar first
+    return k?null:{k:free,m:'on'}}                                 // flying: grab the next bar
+  if(st===W0+3){const k=mi.r?'r':mi.l?'l':'';return k&&wallFloor(pl).length?{k,m:'off'}:k?null:{k:free,m:'on'}}
   return null}
 const TH_AWAY=[46,78,1,0],TH_HOV=[10,16,1.06,1],TH_PR=[0,0,.84,1],TH_LIFT=[42,70,1,1];
 const TH_POSE={cycle:{P:3.8,k:[[0,TH_AWAY],[.35,TH_HOV],[.45,TH_PR],[.6,TH_HOV],[1,TH_LIFT],[1.95,TH_LIFT],[2.3,TH_HOV],[2.4,TH_PR],[2.55,TH_HOV],[3.1,TH_AWAY],[3.8,TH_AWAY]]},
@@ -4786,6 +4791,11 @@ const PC_KEYS=['up','left','down','right','power'];
 /* which movement keys each tutorial step needs: [keys, label under the keys] */
 const PC_KPLAN={1:[['down','right'],'AIM ↘ FLOOR'],2:[['right'],'ROLL ⟳'],3:[['right'],'AIM AHEAD →'],4:[['right'],'ROLL →'],5:[['up'],'AIM ↑ BAR'],
   6:['swing','SWING ↔'],7:[['right'],'AIM → NEXT BAR'],w0:[['down','right'],'AIM ↘ FLOOR'],w1:[['up','right'],'AIM ↗ WALL'],w2:[['up','right'],'KEEP AIMING ↗'],w3:[['right'],'AIM → WALL']};
+/* wall level: standing on the floor but not holding it (no jump possible) */
+function coForgot(pl){return T.room==='wall'&&!wallFloor(pl).length&&!pl.hands.some(h=>grip(h))&&pl.p.y>FLOOR_W[1]-R-30&&pl.p.x<FLOOR_W[0]+FLOOR_W[2]+10&&Math.abs(pl.v.y)<200}
+function thForgotSpot(t){const pl=players[0];if(!T||!pl||T.step<=W0||T.step>W0+3||T.lock>0||T.done||T.swapT>0||!coForgot(pl))return;
+  const g=T.g,s=cam.z*VS,sx=Math.min(pl.p.x+72,FLOOR_W[0]+FLOOR_W[2]-20),sy=FLOOR_W[1];
+  g.save();g.translate(W/2-cam.x*s,H/2-cam.y*s);g.scale(s,s);spot(g,sx,sy,t,1);reachGhost(g,t,pl.p.x+30,pl.p.y-6,sx,sy-4,2.2,1);g.restore()}
 /* "Roll to the flag": once the frog has rolled over its hand, a yellow spot + reaching glove show WHERE to grab next (point ahead) */
 function thAheadSpot(t){const pl=players[0];if(!T||!pl||T.step!==4||T.lock>0||T.done||T.swapT>0||T.room!=='floor')return;
   const fh=floorHands(pl);if(fh.length!==1||pl.p.x-fh[0].ax<=20)return;
@@ -4939,15 +4949,22 @@ function coText(dev,pl){                                         // → [style, 
   if((st===6||st===7)&&!T.trap&&!holdOn(pl,BAR1))return['',grab('up','r')];
   if(st===6)return holdOn(pl,BAR1)?['',coDir(dev,'lr')+' Swing!']:['',grab('up','r')];
   if(st===7){const h1=pl.hands.find(h=>grip(h)&&inRect(h.ax,h.ay,BAR1,24));
-    if(h1)return pl.v.x>120&&pl.v.y<-20?['go',LET+' '+B(side(h1),'rel')+' NOW!']:['',coDir(dev,'lr')+' Swing… wait for it'];
+    if(h1){const now=performance.now()/1000;                     // "NOW!" = swinging forward and up, in front of the bar; it stays 0.9 s so the player can react
+      if(pl.v.x>80&&pl.v.y<0&&pl.p.x>h1.ax-10)CO.goT=now;
+      return now-(CO.goT||-9)<.9?['go',LET+' '+B(side(h1),'rel')+' NOW!']:['',coDir(dev,'lr')+' Swing… wait for it']}
     return['',grab('right',freeSide()<0?'l':'r')]}
+  // wall level: the frog stands on the floor WITHOUT holding it (forgot to grab, or let go before charging) → remind: grab first!
+  if(st>W0&&st<=W0+3&&coForgot(pl))return['warn',grab('dr','r')+' Grab the floor first!'];
   if(st===W0+1)return['',coDir(dev,'ur')+' Aim at the wall'];
   if(st===W0+2){const a=aimDir(pl);                               // step by step: hold the floor → aim ↗ → only then HOLD PUSH
     if(!wallFloor(pl).length)return['',grab('dr','r')];
     if(!(a.dx>.3&&a.dy<-.2)&&pl.power<.05)return['',coDir(dev,'ur')+' Aim at the wall first'];
     return['','HOLD '+coPush(dev)+' Charge!','push']}
   if(st===W0+3){const fh=wallFloor(pl);
-    if(fh.length)return['go',LET+' '+B(side(fh[0]),'rel')+' = JUMP!'];
+    if(fh.length){const a=aimDir(pl);                             // back on the floor after a failed jump: aim → charge → jump, again
+      if(pl.power<.5&&!(a.dx>.3&&a.dy<-.2))return['',coDir(dev,'ur')+' Aim at the wall'];
+      if(pl.power<.5)return['','HOLD '+coPush(dev)+' Charge!'];
+      return['go',LET+' '+B(side(fh[0]),'rel')+' = JUMP!']}
     return['',G+' '+B(freeSide()<0?'l':'r',GA)+' on the wall!']}
   return['','']}
 function coach(t){
@@ -4966,7 +4983,8 @@ function coach(t){
     thLinks(t,pl,null)}                                           // coloured circles + L / R tags on the gloves (also a short flash on every grab)
   let r=TH.introAl>0?['',coBtn(dev,'l','')+'<b>= L glove</b><b class="co-p">·</b>'+coBtn(dev,'r','')+'<b>= R glove</b>']:coText(dev,pl);
   if(r[2]==='push'&&CO.newId!==T.id){/* "NEW" the first time PUSH itself is shown */CO.newId=T.id;CO.newT=t;[[520,780],[780,1040],[1040,1560]].forEach((f,k)=>setTimeout(()=>blip(f[0],f[1],.14,'triangle',.13),k*110))}
-  const cls=r[0]+(CO.newId===T.id&&t-CO.newT<3.5?' new':'');
+  CO.go=r[0]==='go';
+  const cls=r[0]+(dev!=='touch'&&CO.newId===T.id&&t-CO.newT<3.5?' new':'');   // phones: the PUSH button has its own "NEW" tag (no double label)
   if(!r[1]){el.classList.remove('on');return}
   if(r[1]!==CO.html){CO.html=r[1];CO.in.innerHTML=r[1]}
   el.classList.add('on');
@@ -5616,7 +5634,7 @@ html.tutlight #joystickZone{width:calc(50vw - 70px)}               /* … but ke
 #coach .co-in{position:relative;display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:16px;background:#fdf8ee;color:#1d2a44;font:900 20px/1.2 ui-rounded,"Nunito",system-ui,sans-serif;white-space:nowrap;box-shadow:0 5px 0 rgba(0,0,0,.18),inset 0 0 0 3px #ffc933}
 #coach .co-in::before{content:"";position:absolute;left:50%;top:-10px;margin-left:-10px;border:10px solid transparent;border-top:0;border-bottom-color:#ffc933}
 #coach.up .co-in::before{top:auto;bottom:-10px;border-bottom:0;border-top:10px solid #ffc933}
-#coach.warn .co-in{box-shadow:0 5px 0 rgba(0,0,0,.18),inset 0 0 0 3px #ff5d8f;color:#b0244f;white-space:normal;max-width:min(360px,86vw);text-align:center}
+#coach.warn .co-in{box-shadow:0 5px 0 rgba(0,0,0,.18),inset 0 0 0 3px #ff5d8f;color:#b0244f;white-space:normal;max-width:min(480px,92vw);text-align:center}
 #coach.warn .co-in::before{border-bottom-color:#ff5d8f}#coach.warn.up .co-in::before{border-top-color:#ff5d8f}
 #coach.go .co-in{background:#ffc933;animation:coGo .55s ease-in-out infinite}
 @keyframes coGo{50%{transform:scale(1.12)}}
