@@ -4388,7 +4388,7 @@ function begin(target){
   setStep(0);T.raf=requestAnimationFrame(tick)}
 function teardown(){
   if(!T)return;cancelAnimationFrame(T.raf);removeEventListener('keydown',onKey,true);removeEventListener('pointerdown',onPtr,true);removeEventListener('pointermove',onPtr,true);
-  el.root.classList.remove('on','show','ok');T=null;document.documentElement.classList.remove('tutlight');try{updateThemeColors()}catch(e){}}
+  el.root.classList.remove('on','show','ok');T=null;tapHide();document.documentElement.classList.remove('tutlight');try{updateThemeColors()}catch(e){}}
 function finish(how){                                            // fade out → restore the real game → open the mode the player picked
   if(!T||T.ending)return;T.ending=true;if(how!=='complete')markDone(how);
   const id=T.target;el.fade.classList.add('on');
@@ -4665,8 +4665,53 @@ function draw(t){
 function tick(now){
   if(!T)return;T.raf=requestAnimationFrame(tick);
   const dt=Math.min(.05,Math.max(0,(now-T.last)/1000));T.last=now;
-  try{if(scene!=='play'){T.ro++;if(T.ro>3){finish('error');return}}else T.ro=0;update(dt);if(T)draw(now/1000)}
+  try{if(scene!=='play'){T.ro++;if(T.ro>3){finish('error');return}}else T.ro=0;update(dt);if(T)draw(now/1000);if(T)try{tapHand(now/1000)}catch(e){console.warn('[tap hand]',e);tapHide()}}
   catch(e){console.warn('[tutorial] error – falling back to the game',e);if(T){T.ending=false;finish('error')}}}
+
+/* ---------- DISCORD: tap hand on the L / R touch buttons (they toggle: tap = grab, tap again = let go) ---------- */
+const TH={el:null,mode:'',t0:0,ev:-1,down:{l:0,r:0}};
+const TH_SVG='<svg viewBox="0 0 60 60" width="60" height="60"><path d="M21 6c0-3 2-5 5-5s5 2 5 5v20l2-1c2-1 5 0 6 2l1 1 2-1c2-1 5 0 6 2l1 1 1-.4c2-.6 5 .6 5 3.4v12c0 8-6 14-14 14h-6c-5 0-9-2-12-6L5 37c-2-2-1-5 1-6 2-2 5-1 7 1l8 8z" fill="#ffd9b0" stroke="#1d2a44" stroke-width="3" stroke-linejoin="round"/><path d="M31 26v9M39 29v7M47 31v6" stroke="#1d2a44" stroke-width="2.5" stroke-linecap="round" opacity=".55"/></svg>';
+function thBuild(){if(TH.el)return;const d=document.createElement('div');d.id='taphand';
+  d.innerHTML='<div class="th-ring"><b>HOLDING</b></div><div class="th-rip"></div><div class="th-hand">'+TH_SVG+'</div><div class="th-tip"></div>';
+  document.body.appendChild(d);TH.el=d;TH.ring=d.querySelector('.th-ring');TH.rip=d.querySelector('.th-rip');TH.hand=d.querySelector('.th-hand');TH.tip=d.querySelector('.th-tip');
+  for(const [id,k] of [['mcL','l'],['mcR','r']]){const b=$t(id);if(!b)continue;     // to notice a player who HOLDS the button
+    b.addEventListener('pointerdown',()=>{TH.down[k]=performance.now()},true);
+    const up=()=>{TH.down[k]=0};b.addEventListener('pointerup',up,true);b.addEventListener('pointercancel',up,true)}}
+function tapHide(){if(TH.el)TH.el.classList.remove('on');TH.mode=''}
+function thTarget(st,pl){                                         // which button the hand shows on this step, and how
+  const mi=window.mobileInput,mc=$t('mobileControls');if(!mi||!mc||mc.style.display!=='block')return null;
+  if(st===1||st===W0)return mi.r?null:{k:'r',m:'cycle'};
+  if(st===3){const k=freeSide()<0?'l':'r';return mi[k]?null:{k,m:'cycle'}}
+  if(st===5)return(mi.l||mi.r)?null:{k:'r',m:'cycle'};
+  if(st===4){const fh=floorHands(pl);if(fh.length!==2)return null;const bk=fh.reduce((a,b)=>b.ax<a.ax?b:a),k=bk.side<0?'l':'r';return mi[k]?{k,m:'off'}:null}
+  if(st===7||st===W0+3){const k=mi.r?'r':mi.l?'l':'';return k?{k,m:'off'}:{k:'r',m:'on'}}
+  return null}
+const TH_AWAY=[46,78,1,0],TH_HOV=[10,16,1.06,1],TH_PR=[0,0,.84,1],TH_LIFT=[42,70,1,1];
+const TH_POSE={cycle:{P:3.8,k:[[0,TH_AWAY],[.35,TH_HOV],[.45,TH_PR],[.6,TH_HOV],[1,TH_LIFT],[1.95,TH_LIFT],[2.3,TH_HOV],[2.4,TH_PR],[2.55,TH_HOV],[3.1,TH_AWAY],[3.8,TH_AWAY]]},
+  on:{P:2.6,k:[[0,TH_AWAY],[.35,TH_HOV],[.45,TH_PR],[.6,TH_HOV],[1.1,TH_LIFT],[1.9,TH_LIFT],[2.25,TH_AWAY],[2.6,TH_AWAY]]}};
+TH_POSE.off=TH_POSE.on;
+function thEvents(m,K){                                           // [time, button looks closed, caption, ripple]
+  if(m==='cycle')return[[0,false,'Watch: just <b>TAP</b> '+K,0],[.45,true,'TAP! ✊ The hand grabs',1],[1,true,'It stays closed — <b>no need to hold!</b>',0],[2.4,false,'Tap '+K+' again = let go ✋',1]];
+  if(m==='on')return[[0,false,'Just <b>TAP</b> '+K+' to grab',0],[.45,true,'TAP = grab ✊ (no need to hold)',1]];
+  return[[0,true,'Tap '+K+' again to let go',0],[.45,false,'TAP again = let go ✋',1]]}
+function tapHand(t){
+  const pl=players[0],live=!!(T&&pl&&T.lock<=0&&!T.done&&!T.ending&&!(T.swapT>0)),now=performance.now();
+  for(const k of ['l','r']){const d=TH.down[k];if(d>0&&now-d>650&&live){TH.down[k]=-1;nudge('Just <b>TAP</b> it — no need to hold! Tap again to let go',3.4)}}
+  const tg=live?thTarget(T.step,pl):null;if(!tg){tapHide();return}
+  thBuild();const b=$t(tg.k==='l'?'mcL':'mcR'),r=b&&b.getBoundingClientRect();if(!r||!r.width){tapHide();return}
+  const id=tg.m+tg.k;if(id!==TH.mode){TH.mode=id;TH.t0=t;TH.ev=-1}
+  const A=TH_POSE[tg.m],u=(t-TH.t0)%A.P,K=tg.k.toUpperCase(),E=thEvents(tg.m,K);
+  let i=0;while(i<A.k.length-2&&A.k[i+1][0]<=u)i++;
+  const a=A.k[i],c=A.k[i+1],f=ease((u-a[0])/Math.max(.001,c[0]-a[0])),q=n=>a[1][n]+(c[1][n]-a[1][n])*f;
+  let e=0;while(e<E.length-1&&E[e+1][0]<=u)e++;
+  if(e!==TH.ev){const ev=E[e];TH.ev=e;TH.ring.classList.toggle('lit',ev[1]);TH.tip.innerHTML=ev[2];
+    if(ev[3]&&!RM){TH.rip.classList.remove('go');void TH.rip.offsetWidth;TH.rip.classList.add('go')}}
+  const cx=r.left+r.width/2,cy=r.top+r.height/2;
+  TH.ring.style.left=TH.rip.style.left=cx+'px';TH.ring.style.top=TH.rip.style.top=cy+'px';
+  TH.hand.style.opacity=q(3).toFixed(3);
+  TH.hand.style.transform='translate('+(cx-25+q(0)).toFixed(1)+'px,'+(cy-3+q(1)).toFixed(1)+'px) scale('+q(2).toFixed(3)+')';
+  const tw=TH.tip.offsetWidth||200;TH.tip.style.left=Math.max(8,Math.min(innerWidth-tw-8,cx-tw/2))+'px';TH.tip.style.top=Math.max(8,r.top-TH.tip.offsetHeight-22)+'px';
+  TH.el.classList.add('on')}
 
 /* ---------- v83: a gentle reminder in the first 3 campaign levels when the player seems stuck ---------- */
 {const ST={lv:-2,best:1e9,t:0,n:0,show:0};const box=$t('tuthint');
@@ -5262,6 +5307,21 @@ window.__extra={levelsWin,giftWin,tick,reset:()=>{EXS={ads:0,on:false};exSave();
 #dctoast{position:fixed;left:50%;top:18px;z-index:400;transform:translate(-50%,-140%);max-width:90vw;padding:12px 20px;border-radius:18px;background:#fdf8ee;color:#3b4a6b;font:900 16px/1.35 ui-rounded,"Nunito",system-ui,sans-serif;text-align:center;box-shadow:0 6px 0 rgba(0,0,0,.15),inset 0 0 0 3px #ffc933;transition:transform .45s cubic-bezier(.2,1.5,.4,1);pointer-events:none}
 #dctoast.on{transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){.mpill.minv,.minv-ic,.minv-b,.mpill.mshop::after,.msh-ic,.soc.dcjoin svg{animation:none}}
+</style>
+<style id="dc-taphand-css">
+#taphand{position:fixed;inset:0;z-index:70;pointer-events:none;display:none}
+#taphand.on{display:block}
+#taphand .th-ring,#taphand .th-rip{position:fixed;width:80px;height:80px;margin:-40px 0 0 -40px;border-radius:50%;box-sizing:border-box}
+#taphand .th-ring{border:4px solid #ffc933;box-shadow:0 0 12px rgba(255,201,51,.85);transition:background .12s,border-color .12s,box-shadow .12s}
+#taphand .th-ring.lit{background:rgba(46,204,113,.55);border-color:#2ecc71;box-shadow:0 0 16px #2ecc71,0 0 34px rgba(46,204,113,.75)}
+#taphand .th-ring b{position:absolute;left:50%;top:-13px;transform:translateX(-50%);padding:2px 7px;border-radius:9px;background:#2ecc71;color:#fff;font:900 11px/1.2 ui-rounded,"Nunito",system-ui,sans-serif;letter-spacing:.04em;opacity:0;transition:opacity .12s;white-space:nowrap}
+#taphand .th-ring.lit b{opacity:1}
+#taphand .th-rip{border:4px solid #ffc933;opacity:0}
+#taphand .th-rip.go{animation:thRip .55s ease-out}
+@keyframes thRip{from{transform:scale(.7);opacity:1}to{transform:scale(1.8);opacity:0}}
+#taphand .th-hand{position:fixed;left:0;top:0;width:60px;height:60px;transform-origin:25px 3px;filter:drop-shadow(0 5px 3px rgba(0,0,0,.35));will-change:transform,opacity}
+#taphand .th-tip{position:fixed;max-width:min(280px,72vw);padding:8px 14px;border-radius:14px;background:#fdf8ee;color:#1d2a44;font:900 16px/1.25 ui-rounded,"Nunito",system-ui,sans-serif;text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.15),inset 0 0 0 3px #ffc933}
+#taphand .th-tip b{color:#e0457b}
 </style>
 <style id="ctl-css">
 #ctlwin{position:fixed;inset:0;z-index:170;display:none;align-items:center;justify-content:center;background:rgba(20,28,44,.72);--ff:ui-rounded,"Nunito","Arial Rounded MT Bold",system-ui,sans-serif;font-family:var(--ff)}
