@@ -4565,7 +4565,7 @@ function recordDemos(){
 const DEMO_OF={1:'crawl',2:'crawl',3:'crawl',4:'crawl',5:'grab',6:'swing',7:'catch'};
 for(let k=0;k<4;k++)DEMO_OF[W0+k]='wjump';
 function drawGhost(g,t,pl){
-  const key=DEMO_OF[T.step],fr=T.demo&&key&&T.demo[key];if(!fr||fr.length<2)return;
+  const key=T.ghKey||DEMO_OF[T.step],fr=T.demo&&key&&T.demo[key];if(!fr||fr.length<2)return;
   const G=T.gh||(T.gh={}),speed=key==='crawl'?0.75:0.85,len=(fr.length-1)/30/speed+0.7;
   if(G.key!==key){G.key=key;G.t0=t;G.off=null}
   let u=t-G.t0;if(u>=len){G.t0=t;u=0;G.off=null}
@@ -4665,7 +4665,7 @@ function draw(t){
 function tick(now){
   if(!T)return;T.raf=requestAnimationFrame(tick);
   const dt=Math.min(.05,Math.max(0,(now-T.last)/1000));T.last=now;
-  try{if(scene!=='play'){T.ro++;if(T.ro>3){finish('error');return}}else T.ro=0;update(dt);if(T)draw(now/1000);try{thBarGlove(now/1000)}catch(e){}if(T)try{tapHand(now/1000)}catch(e){console.warn('[tap hand]',e);tapHide()}if(T)try{coach(now/1000)}catch(e){console.warn('[coach]',e);coHide()}}
+  try{if(scene!=='play'){T.ro++;if(T.ro>3){finish('error');return}}else T.ro=0;update(dt);if(T)draw(now/1000);try{thBarGlove(now/1000);thAheadSpot(now/1000)}catch(e){}if(T)try{tapHand(now/1000)}catch(e){console.warn('[tap hand]',e);tapHide()}if(T)try{coach(now/1000)}catch(e){console.warn('[coach]',e);coHide()}}
   catch(e){console.warn('[tutorial] error – falling back to the game',e);if(T){T.ending=false;finish('error')}}}
 
 /* ---------- DISCORD: tap hand on the L / R touch buttons (they toggle: tap = grab, tap again = let go) ---------- */
@@ -4786,6 +4786,11 @@ const PC_KEYS=['up','left','down','right','power'];
 /* which movement keys each tutorial step needs: [keys, label under the keys] */
 const PC_KPLAN={1:[['down','right'],'AIM ↘ FLOOR'],2:[['right'],'ROLL ⟳'],3:[['right'],'AIM AHEAD →'],4:[['right'],'ROLL →'],5:[['up'],'AIM ↑ BAR'],
   6:['swing','SWING ↔'],7:[['right'],'AIM → NEXT BAR'],w0:[['down','right'],'AIM ↘ FLOOR'],w1:[['up','right'],'AIM ↗ WALL'],w2:[['up','right'],'KEEP AIMING ↗'],w3:[['right'],'AIM → WALL']};
+/* "Roll to the flag": once the frog has rolled over its hand, a yellow spot + reaching glove show WHERE to grab next (point ahead) */
+function thAheadSpot(t){const pl=players[0];if(!T||!pl||T.step!==4||T.lock>0||T.done||T.swapT>0||T.room!=='floor')return;
+  const fh=floorHands(pl);if(fh.length!==1||pl.p.x-fh[0].ax<=20)return;
+  const g=T.g,s=cam.z*VS,sx=pl.p.x+72,sy=FLOOR[1],sd=fh[0].side<0?1:-1;
+  g.save();g.translate(W/2-cam.x*s,H/2-cam.y*s);g.scale(s,s);spot(g,sx,sy,t,1);reachGhost(g,t,pl.p.x+30,pl.p.y-6,sx,sy-4,2.2,sd);g.restore()}
 /* a glove on the next bar (step "Let go… catch the next bar!") shows where to grab */
 function thBarGlove(t){const pl=players[0];if(!T||!pl||T.step!==7||T.lock>0||T.done||T.swapT>0||T.room!=='bars'||holdOn(pl,BAR2))return;
   if(pl.hands.some(h=>grip(h))||!T.trap)return;                   // only while flying (let go) – not while swinging, not while standing on the floor
@@ -4804,10 +4809,10 @@ function pcBuild(){if(PC.el)return;const d=document.createElement('div');d.id='p
   PC.cap=d.querySelector('.pc-cap');PC.pow=d.querySelector('.pc-pow');PC.keys={};d.querySelectorAll('b[data-k]').forEach(b=>PC.keys[b.dataset.k]=b);
   const quick=(d0,what)=>{if(T&&d0>0&&T.lock<=0&&!T.done&&performance.now()-d0<260&&[1,3,5,W0].includes(T.step))nudge('<b>Hold</b> '+what+' down — the glove only grabs while you hold it',3.2)};
   const btn=e=>e.button===0?'l':e.button===2?'r':'';
-  addEventListener('mousedown',e=>{const k=btn(e);if(!k||!T)return;PC.dn[k]=TH.flash[k]=performance.now()},true);
+  addEventListener('mousedown',e=>{const k=btn(e);if(!k||!T)return;PC.dn[k]=TH.flash[k]=performance.now();PC.lastGrab='mouse'},true);
   addEventListener('mouseup',e=>{const k=btn(e);if(!k)return;const d0=PC.dn[k];PC.dn[k]=0;quick(d0,'the click')},true);   // a quick click instead of a hold: say so
   const kk=e=>{const key=String(e.key||'').toLowerCase();return PC_TRACK.filter(k=>window.KB&&KB[k]===key)};
-  addEventListener('keydown',e=>{for(const k of kk(e)){if(!PC.kd[k]){PC.kd[k]=performance.now();if(k==='handL')TH.flash.l=PC.kd[k];if(k==='handR')TH.flash.r=PC.kd[k]}}},true);
+  addEventListener('keydown',e=>{for(const k of kk(e)){if(!PC.kd[k]){PC.kd[k]=performance.now();if(k==='handL')TH.flash.l=PC.kd[k];if(k==='handR')TH.flash.r=PC.kd[k];if(k==='handL'||k==='handR')PC.lastGrab='key'}}},true);
   addEventListener('keyup',e=>{for(const k of kk(e)){const d0=PC.kd[k];delete PC.kd[k];if(k==='handL'||k==='handR')quick(d0,'the key')}},true);
   addEventListener('blur',()=>{PC.kd={};PC.dn={l:0,r:0}})}
 const PC_TRACK=['up','left','down','right','power','handL','handR'];
@@ -4885,16 +4890,18 @@ function pcCtl(t){
 const CO={el:null,x:-1,y:-1,html:'',cls:'',id:-1,t0:0,newId:-1,newT:0};
 function coBuild(){if(CO.el)return;const d=document.createElement('div');d.id='coach';d.innerHTML='<div class="co-new">✨ NEW</div><div class="co-in"></div>';
   document.body.appendChild(d);CO.el=d;CO.in=d.querySelector('.co-in');try{pcBuild();PC.cv.style.display='none'}catch(e){}}   // pcBuild = mouse / key listeners
-function ghostOnce(t){                                           // true while the ghost may play: one single loop per ability, then never again
-  const K={1:'crawl',6:'swing'};K[W0]='wjump';const key=K[T.step];if(!key)return false;
+function ghostOnce(t){                                           // true while the ghost may play: ONE full loop per ability, then never again
+  // the ability starts at its first step and the loop keeps playing to the end even when the player goes on to the next steps
+  const st=T.step,key=st>=1&&st<=4?'crawl':st>=5&&st<=7?'swing':st>=W0&&st<=W0+3?'wjump':'';if(!key){T.ghKey='';return false}
   const fr=T.demo&&T.demo[key];if(!fr||fr.length<2)return false;
-  const D=T.gho||(T.gho={});if(D[key]==='done')return false;
+  const D=T.gho||(T.gho={});if(D[key]==='done'){T.ghKey='';return false}
   if(D[key]==null){D[key]=t;T.gh=null}                            // start the demo from its beginning
-  const len=(fr.length-1)/30/(key==='crawl'?.75:.85)+.7;
-  if(t-D[key]>=len-.05){D[key]='done';return false}
+  T.ghKey=key;const len=(fr.length-1)/30/(key==='crawl'?.75:.85)+.7;
+  if(t-D[key]>=len-.05){D[key]='done';T.ghKey='';return false}
   return true}
 function coHide(){if(CO.el)CO.el.classList.remove('on');window.__simScale=1;CO.sim=1}
-function coDev(){const mc=$t('mobileControls');if(mc&&mc.style.display==='block')return 'touch';return T.dev==='pad'?'pad':T.dev==='key'?'key':'mouse'}
+function coDev(){const mc=$t('mobileControls');if(mc&&mc.style.display==='block')return 'touch';   // PC: moves are always shown with the movement keys;
+  return T.dev==='pad'?'pad':PC.lastGrab==='key'?'key':'mouse'}                                      // the GRAB icon follows how the player really grabs (mouse click, or the L / R keys)
 function coMouse(k){return '<svg viewBox="0 0 40 56" width="26" height="36"><path d="M20 2C10 2 3 9 3 20v16c0 10 7 18 17 18s17-8 17-18V20C37 9 30 2 20 2z" fill="#fff" stroke="#1d2a44" stroke-width="3"/><path d="'+
   (k==='l'?'M19 3.5C11 4 4.5 10 4.5 21.5H19z':'M21 3.5C29 4 35.5 10 35.5 21.5H21z')+'" fill="'+TH_COL[k]+'"/><path d="M3 23h34M20 3v20" stroke="#1d2a44" stroke-width="2.5"/></svg>'}
 function coBtn(dev,k,act){const c=TH_COL[k],a=act?' co-'+act:'';                // the L / R grab control, drawn like the real one
@@ -4920,11 +4927,12 @@ function coText(dev,pl){                                         // → [style, 
   if(T.nudge>0)return['warn',T.nudgeMsg];
   if(st===0)return['',coDir(dev,'all')+' Move your hands'];
   if(st===1||st===W0)return floorHands(pl).length||wallFloor(pl).length?['','Keep holding ✊']:['',grab('dr','r')];
-  if(st===2)return on('r')||on('l')?['',roll()]:['',G+' '+B('r',GA)+' on the floor'];
+  if(st===2)return on('r')||on('l')?['',roll()]:['',grab('dr','r')];
   if(st===3){const k=freeSide()<0?'l':'r';return['',grab('right',k)]}
   if(st===4){const fh=floorHands(pl);
     if(fh.length===2){const bk=fh.reduce((a,b)=>b.ax<a.ax?b:a);return['',LET+' '+B(side(bk),'rel')+' (back hand)']}
-    if(fh.length===1)return['',roll()];
+    if(fh.length===1){const k=side(fh[0])==='l'?'r':'l';          // already rolled over the hand → now POINT AHEAD and GRAB with the other hand
+      return pl.p.x-fh[0].ax>20?['',grab('dr',k)+' ahead']:['',roll()]}
     return['',grab('dr','r')]}
   if(st===5)return holdOn(pl,BAR1)?['','Keep holding ✊']:['',grab('up','r')];
   // swing level, back on the floor (start / after a fall): FIRST grab the bar again
@@ -4946,6 +4954,9 @@ function coach(t){
   const pl=players[0];
   if(!T||!pl||T.ending||T.done||T.swapT>0){if(CO.el)CO.el.classList.remove('on');window.__simScale=1;return}
   coBuild();const dev=coDev(),st=T.step,el=CO.el;
+  // the top card = a TITLE only: shown for 3 s when a stage starts (and for the "Nice!" / "You're ready!" moments), hidden the rest of the time
+  {const sg=STEPS[st]?STEPS[st].s:0;if(CO.stg!==sg||CO.stgId!==T.id){CO.stg=sg;CO.stgId=T.id;CO.stgT=t}
+   const show=t-CO.stgT<3||T.lock>0||T.done,tp=$t('tutpos');if(tp)tp.classList.toggle('cohide',!show)}
   const fly=((st===7&&T.trap)||st===W0+3)&&!pl.hands.some(h=>grip(h));   // in the air after letting go (not while standing on the floor)      // slow motion ONLY while flying after letting go (bar → bar, floor → wall)
   CO.sim=(CO.sim||1)+((fly?.45:1)-(CO.sim||1))*.15;window.__simScale=CO.sim;   // eased in / out
   // intro (first seconds, mouse / keys / pad; phones have their own intro on the real buttons): which control = which glove
@@ -4963,7 +4974,7 @@ function coach(t){
   // right under the frog … or above it … but never on top of the joystick or the L / R / PUSH buttons (phones)
   const clampX=x=>Math.max(8,Math.min(innerWidth-w-8,x)),clampY=y=>Math.max(8,Math.min(innerHeight-h-8,y));
   const avoid=[];if(dev==='touch')for(const id of ['joystickBase','mcBtns']){const e=$t(id),q=e&&e.getBoundingClientRect();if(q&&q.width)avoid.push(q)}
-  {const q=$t('tutpos')&&$t('tutpos').getBoundingClientRect();if(q&&q.width)avoid.push({left:q.left,right:q.right,top:q.top,bottom:q.bottom-8,card:1})}   // the title card at the top (its shadow may touch)
+  {const tp=$t('tutpos'),q=tp&&!tp.classList.contains('cohide')&&tp.getBoundingClientRect();if(q&&q.width)avoid.push({left:q.left,right:q.right,top:q.top,bottom:q.bottom-8,card:1})}   // the title card at the top (its shadow may touch)
   const hit=(x,y)=>avoid.some(q=>{const m=q.card?4:12;return x<q.right+m&&x+w>q.left-m&&y<q.bottom+m&&y+h>q.top-m});
   // ONE FIXED HEIGHT per level, always ABOVE the platform / bars – the bubble never jumps up and down.
   // Swing level: x is fixed too (above the first bar). Floor / wall levels: x follows the frog slowly.
@@ -5595,6 +5606,8 @@ window.__extra={levelsWin,giftWin,tick,reset:()=>{EXS={ads:0,on:false};exSave();
 @keyframes thNewGlow{50%{background:#ffb020;border-color:#fff;box-shadow:0 0 0 6px #ffc933,0 0 34px 10px rgba(255,201,51,.9);transform:scale(1.08)}}
 #thnew{position:fixed;z-index:71;pointer-events:none;transform:translateX(-50%);padding:7px 16px;border-radius:999px;background:linear-gradient(135deg,#ffb020,#ff5f6d 60%,#c04ee8);color:#fff;font:900 16px/1.2 ui-rounded,"Nunito",system-ui,sans-serif;white-space:nowrap;box-shadow:0 4px 0 #b23a6b,0 0 18px rgba(255,201,51,.7);animation:thNewTag 3.6s ease forwards}
 #tut .th{display:none!important}
+#tutpos{transition:opacity .35s ease}
+#tutpos.cohide{opacity:0;pointer-events:none}
 html.tutlight #mobileControls{z-index:9}                           /* tutorial: L / R / PUSH and the joystick above the yellow glows */
 html.tutlight #joystickZone{width:calc(50vw - 70px)}               /* … but keep the Skip button (bottom centre) clickable */
 #taphand .th-tip{display:none!important}
