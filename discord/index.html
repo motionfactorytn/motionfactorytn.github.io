@@ -4572,7 +4572,7 @@ function drawGhost(g,t,pl){
   if(key==='crawl'&&G.off===null)G.off=pl.p.x-fr[0][0];          // the crawl ghost starts where the player is
   const ox=key==='crawl'?G.off:0,fi=Math.min(fr.length-1,u*30*speed),i=Math.floor(fi),k=fi-i,A=fr[i],B=fr[Math.min(fr.length-1,i+1)];
   const L=j=>A[j]+(B[j]-A[j])*k,fade=u<0.25?u/0.25:(u>len-0.35?Math.max(0,(len-u)/0.35):1);
-  g.save();g.globalAlpha=0.15*fade;g.fillStyle='#000';g.strokeStyle='#000';g.lineCap='round';
+  g.save();g.globalAlpha=0.10*fade;g.fillStyle='#000';g.strokeStyle='#000';g.lineCap='round';
   const bx=L(0)+ox,by=L(1);
   for(const [hx,hy,hg,side] of [[L(2)+ox,L(3),A[4],-1],[L(5)+ox,L(6),A[7],1]]){
     g.lineWidth=9;g.beginPath();g.moveTo(bx+side*12,by+6);g.lineTo(hx,hy);g.stroke();
@@ -4621,7 +4621,7 @@ function draw(t){
   if(!pl||T.swapT>0)return;
   g.save();g.translate(ox,oy);g.scale(s,s);g.lineCap='round';g.lineJoin='round';
   const st=T.step,px=pl.p.x,py=pl.p.y,live=T.lock<=0&&!T.done;
-  /* Discord: no ghost frog */
+  if(live&&ghostOnce(t))drawGhost(g,t,pl); // Discord: the ghost frog plays ONCE at the start of each ability (move / swing / power jump)
   if(T.room==='floor')flag(g,FLAG_X,FLOOR[1],t,st===4);
   if(st===0&&live){                                              // a ghost glove sweeping an arc around the head
     const th0=-Math.PI/2,am=1.15,u=Math.min(1,T.travel/NEED_TRAVEL),al=.9*(1-u*.65),r=98,th=th0+Math.sin(t*2.1)*am;
@@ -4680,20 +4680,22 @@ function thIntro(t,pl){                                           // true while 
   if(TH.introId!==T.id){if(T.step!==0)return false;TH.introId=T.id;TH.introT0=t}
   const u=t-TH.introT0;
   if(u>=TH_IN.end){thBtnSet('l',0,0,1,null);thBtnSet('r',0,0,1,null);TH.introAl=0;TH.introT0=-1;return false}
-  const s=cam.z*VS,fx=W/2+(pl.p.x-cam.x)*s,fy=H/2+(pl.p.y-cam.y)*s,ty=Math.max(48,fy-R*s-112);TH.cap=[fx,fy+R*s+20];
+  const s=cam.z*VS,fx=W/2+(pl.p.x-cam.x)*s,fy=H/2+(pl.p.y-cam.y)*s,SM=.62;   // small buttons (62 %) right ABOVE the coach bubble
+  const bTop=CO.el&&CO.el.classList.contains('on')&&CO.top>0?CO.top:fy-(R+ARM)*s-70,ty=Math.max(28,bTop-30);TH.cap=[fx,fy+R*s+20];
+  const bx=CO.el&&CO.el.classList.contains('on')&&CO.x>0?CO.x+CO.el.offsetWidth/2:fx;
   for(const k of ['l','r']){const b=$t(k==='l'?'mcL':'mcR');if(!b)continue;const r=b.getBoundingClientRect(),o=TH.off[k];
     const hx=r.left+r.width/2-o[0],hy=r.top+r.height/2-o[1];      // the button's normal place (without our offset)
-    const tx=fx+(k==='l'?-46:46),ax=tx-hx,ay=ty-hy;
-    if(u<TH_IN.fly){const p=Math.min(1,u/TH_IN.pop),sc=u<TH_IN.pop?Math.max(.01,1+2.2*Math.pow(p-1,3)+1.2*Math.pow(p-1,2)):1;thBtnSet(k,ax,ay,sc,1)}
+    const tx=bx+(k==='l'?-32:32),ax=tx-hx,ay=ty-hy;
+    if(u<TH_IN.fly){const p=Math.min(1,u/TH_IN.pop),sc=u<TH_IN.pop?Math.max(.01,1+2.2*Math.pow(p-1,3)+1.2*Math.pow(p-1,2)):1;thBtnSet(k,ax,ay,sc*SM,1)}
     else{if(!TH.flyFrom)TH.flyFrom={};if(!TH.flyFrom[k])TH.flyFrom[k]=[ax,ay];const f=ease((u-TH_IN.fly)/(TH_IN.end-TH_IN.fly)),F=TH.flyFrom[k];
-      thBtnSet(k,F[0]*(1-f),F[1]*(1-f),1+.15*Math.sin(f*Math.PI),1-.8*f)}}
+      thBtnSet(k,F[0]*(1-f),F[1]*(1-f),SM+(1-SM)*f+.12*Math.sin(f*Math.PI),1-.8*f)}}
   if(u<TH_IN.fly)TH.flyFrom=null;
   TH.introAl=u<TH_IN.linkIn?0:u<TH_IN.linkIn+.3?(u-TH_IN.linkIn)/.3:u<TH_IN.linkOut?1:Math.max(0,1-(u-TH_IN.linkOut)/.5);
   return true}
 /* PUSH / JUMP stays hidden in the tutorial until it is needed ("Hold PUSH to charge"), then it appears as a NEW ability */
 function thPush(){const bp=$t('mcPow');if(!bp)return;
   if(TH.pushId===T.id)return;
-  if(T.step<W0+2){bp.style.visibility='hidden';return}
+  if(CO.newId!==T.id){bp.style.visibility='hidden';return}        // appears together with the coach's "HOLD PUSH" (after aiming at the wall)
   TH.pushId=T.id;bp.style.visibility='';bp.classList.remove('thnew');void bp.offsetWidth;bp.classList.add('thnew');
   setTimeout(()=>bp.classList.remove('thnew'),4200);
   const r=bp.getBoundingClientRect(),tag=document.createElement('div');tag.id='thnew';tag.innerHTML='✨ NEW: <b>PUSH / JUMP</b>';
@@ -4786,6 +4788,7 @@ const PC_KPLAN={1:[['down','right'],'AIM ↘ FLOOR'],2:[['right'],'ROLL ⟳'],3:
   6:['swing','SWING ↔'],7:[['right'],'AIM → NEXT BAR'],w0:[['down','right'],'AIM ↘ FLOOR'],w1:[['up','right'],'AIM ↗ WALL'],w2:[['up','right'],'KEEP AIMING ↗'],w3:[['right'],'AIM → WALL']};
 /* a glove on the next bar (step "Let go… catch the next bar!") shows where to grab */
 function thBarGlove(t){const pl=players[0];if(!T||!pl||T.step!==7||T.lock>0||T.done||T.swapT>0||T.room!=='bars'||holdOn(pl,BAR2))return;
+  if(pl.hands.some(h=>grip(h)))return;                            // only while flying (let go) – not while still swinging
   const g=T.g,s=cam.z*VS,ox=W/2-cam.x*s,oy=H/2-cam.y*s,x=BAR2[0]+60,y=BAR2[1]+BAR2[3]/2,sd=freeSide();
   g.save();g.translate(ox,oy);g.scale(s,s);
   const u=(t%1.6)/1.6,c=u>.35&&u<.85,sc=1+(u>.35&&u<.5?Math.sin((u-.35)/.15*Math.PI)*.18:0);
@@ -4882,6 +4885,14 @@ function pcCtl(t){
 const CO={el:null,x:-1,y:-1,html:'',cls:'',id:-1,t0:0,newId:-1,newT:0};
 function coBuild(){if(CO.el)return;const d=document.createElement('div');d.id='coach';d.innerHTML='<div class="co-new">✨ NEW</div><div class="co-in"></div>';
   document.body.appendChild(d);CO.el=d;CO.in=d.querySelector('.co-in');try{pcBuild();PC.cv.style.display='none'}catch(e){}}   // pcBuild = mouse / key listeners
+function ghostOnce(t){                                           // true while the ghost may play: one single loop per ability, then never again
+  const K={1:'crawl',6:'swing'};K[W0]='wjump';const key=K[T.step];if(!key)return false;
+  const fr=T.demo&&T.demo[key];if(!fr||fr.length<2)return false;
+  const D=T.gho||(T.gho={});if(D[key]==='done')return false;
+  if(D[key]==null){D[key]=t;T.gh=null}                            // start the demo from its beginning
+  const len=(fr.length-1)/30/(key==='crawl'?.75:.85)+.7;
+  if(t-D[key]>=len-.05){D[key]='done';return false}
+  return true}
 function coHide(){if(CO.el)CO.el.classList.remove('on');window.__simScale=1;CO.sim=1}
 function coDev(){const mc=$t('mobileControls');if(mc&&mc.style.display==='block')return 'touch';return T.dev==='pad'?'pad':T.dev==='key'?'key':'mouse'}
 function coMouse(k){return '<svg viewBox="0 0 40 56" width="26" height="36"><path d="M20 2C10 2 3 9 3 20v16c0 10 7 18 17 18s17-8 17-18V20C37 9 30 2 20 2z" fill="#fff" stroke="#1d2a44" stroke-width="3"/><path d="'+
@@ -4895,10 +4906,11 @@ function coDir(dev,d){                                            // where to ai
   if(dev==='key'||dev==='mouse'){const m={up:['up'],down:['down'],left:['left'],right:['right'],dr:['down','right'],ur:['up','right'],lr:['left','right'],all:['up','left','down','right']}[d]||[];
     return m.map(q=>'<i class="co-k co-kd">'+keyLabel(KB[q])+'</i>').join(d==='lr'?' ↔ ':d==='all'?' ':' + ')}
   const ar={up:'↑',down:'↓',left:'←',right:'→',ur:'↗',dr:'↘',lr:'← →',all:'',over:'⤴'}[d]||'';
-  const ic=dev==='touch'?'<svg viewBox="0 0 36 36" width="30" height="30"><circle cx="18" cy="18" r="15" fill="#dfe4ec" stroke="#1d2a44" stroke-width="2.5"/><circle cx="18" cy="18" r="7" fill="#1d2a44"/></svg>'   // joystick
+  // joystick: the knob moves EXACTLY the way the player has to push it (↘, →, ↑, ↗, ← →, around, up-and-over)
+  const ic=dev==='touch'?'<svg viewBox="0 0 36 36" width="32" height="32" overflow="visible"><circle cx="18" cy="18" r="15" fill="#dfe4ec" stroke="#1d2a44" stroke-width="2.5"/><circle class="jk jd-'+(d||'all')+'" cx="18" cy="18" r="7" fill="#1d2a44"/></svg>'
     :dev==='pad'?'<i class="co-k">STICK</i>'
-    :'<svg viewBox="0 0 40 56" width="24" height="34"><path d="M20 2C10 2 3 9 3 20v16c0 10 7 18 17 18s17-8 17-18V20C37 9 30 2 20 2z" fill="#fff" stroke="#1d2a44" stroke-width="3"/><path d="M3 23h34M20 3v20" stroke="#1d2a44" stroke-width="2.5"/></svg>';  // plain mouse = move it
-  return '<i class="co-ic co-mv">'+ic+'</i>'+(ar?'<b class="co-ar">'+ar+'</b>':'')}
+    :'<svg viewBox="0 0 40 56" width="24" height="34"><path d="M20 2C10 2 3 9 3 20v16c0 10 7 18 17 18s17-8 17-18V20C37 9 30 2 20 2z" fill="#fff" stroke="#1d2a44" stroke-width="3"/><path d="M3 23h34M20 3v20" stroke="#1d2a44" stroke-width="2.5"/></svg>';
+  return '<i class="co-ic">'+ic+'</i>'+(ar?'<b class="co-ar">'+ar+'</b>':'')}
 function coPush(dev){return dev==='touch'?'<i class="co-tb co-push co-hold">PUSH</i>':dev==='pad'?'<i class="co-k co-hold">RT</i>':'<i class="co-k co-hold">'+keyLabel(KB.power)+'</i>'}
 function coText(dev,pl){                                         // → [style, html]
   const st=T.step,TOUCH=dev==='touch',G=TOUCH?'TAP':'HOLD',GA=TOUCH?'tap':'hold',LET=TOUCH?'TAP':'LET GO',B=(k,a)=>coBtn(dev,k,a);
@@ -4920,7 +4932,10 @@ function coText(dev,pl){                                         // → [style, 
     if(h1)return pl.v.x>120&&pl.v.y<-20?['go',LET+' '+B(side(h1),'rel')+' NOW!']:['',coDir(dev,'lr')+' Swing… wait for it'];
     return['',grab('right',freeSide()<0?'l':'r')]}
   if(st===W0+1)return['',coDir(dev,'ur')+' Aim at the wall'];
-  if(st===W0+2)return['','HOLD '+coPush(dev)+' Charge!'];
+  if(st===W0+2){const a=aimDir(pl);                               // step by step: hold the floor → aim ↗ → only then HOLD PUSH
+    if(!wallFloor(pl).length)return['',grab('dr','r')];
+    if(!(a.dx>.3&&a.dy<-.2)&&pl.power<.05)return['',coDir(dev,'ur')+' Aim at the wall first'];
+    return['','HOLD '+coPush(dev)+' Charge!','push']}
   if(st===W0+3){const fh=wallFloor(pl);
     if(fh.length)return['go',LET+' '+B(side(fh[0]),'rel')+' = JUMP!'];
     return['',G+' '+B(freeSide()<0?'l':'r',GA)+' on the wall!']}
@@ -4937,7 +4952,7 @@ function coach(t){
     TH.introAl=u<TH_IN.end?(u<TH_IN.linkIn?0:u<TH_IN.linkIn+.3?(u-TH_IN.linkIn)/.3:u<TH_IN.linkOut?1:Math.max(0,1-(u-TH_IN.linkOut)/.5)):0;
     thLinks(t,pl,null)}                                           // coloured circles + L / R tags on the gloves (also a short flash on every grab)
   let r=TH.introAl>0?['',coBtn(dev,'l','')+'<b>= L glove</b><b class="co-p">·</b>'+coBtn(dev,'r','')+'<b>= R glove</b>']:coText(dev,pl);
-  if(st===W0+2&&CO.newId!==T.id){CO.newId=T.id;CO.newT=t;[[520,780],[780,1040],[1040,1560]].forEach((f,k)=>setTimeout(()=>blip(f[0],f[1],.14,'triangle',.13),k*110))}
+  if(r[2]==='push'&&CO.newId!==T.id){/* "NEW" the first time PUSH itself is shown */CO.newId=T.id;CO.newT=t;[[520,780],[780,1040],[1040,1560]].forEach((f,k)=>setTimeout(()=>blip(f[0],f[1],.14,'triangle',.13),k*110))}
   const cls=r[0]+(CO.newId===T.id&&t-CO.newT<3.5?' new':'');
   if(!r[1]){el.classList.remove('on');return}
   if(r[1]!==CO.html){CO.html=r[1];CO.in.innerHTML=r[1]}
@@ -4946,12 +4961,18 @@ function coach(t){
   // right under the frog … or above it … but never on top of the joystick or the L / R / PUSH buttons (phones)
   const clampX=x=>Math.max(8,Math.min(innerWidth-w-8,x)),clampY=y=>Math.max(8,Math.min(innerHeight-h-8,y));
   const avoid=[];if(dev==='touch')for(const id of ['joystickBase','mcBtns']){const e=$t(id),q=e&&e.getBoundingClientRect();if(q&&q.width)avoid.push(q)}
-  const hit=(x,y)=>avoid.some(q=>x<q.right+12&&x+w>q.left-12&&y<q.bottom+12&&y+h>q.top-12);
-  const below=fy+(R+18)*s+16,above=fy-(R+ARM)*s-h-16,cands=[[fx-w/2,below,false],[fx-w/2,above,true]];
-  for(const q of avoid){cands.push([q.right+16,below,false],[q.left-w-16,below,false],[q.right+16,above,true],[q.left-w-16,above,true])}
+  {const q=$t('tutpos')&&$t('tutpos').getBoundingClientRect();if(q&&q.width)avoid.push({left:q.left,right:q.right,top:q.top,bottom:q.bottom-8,card:1})}   // the title card at the top (its shadow may touch)
+  const hit=(x,y)=>avoid.some(q=>{const m=q.card?4:12;return x<q.right+m&&x+w>q.left-m&&y<q.bottom+m&&y+h>q.top-m});
+  // ABOVE the frog and above the platform it holds (bubble never covers the frog / the bar), x follows the frog
+  let topRef=fy-(R+ARM*.75)*s;for(const q of pl.hands)if(grip(q))topRef=Math.min(topRef,H/2+(q.ay-cam.y)*s-34*s);
+  if(T.room==='bars')topRef=Math.min(topRef,H/2+(Math.min(BAR1[1],BAR2[1])-cam.y)*s-4);   // swing level: one steady height above both bars – only x follows the frog
+  const below=fy+(R+18)*s+16,above=topRef-h-12,cands=[[fx-w/2,above,true]];   // every "above" place first, "below" only as a last resort
+  for(const q of avoid)cands.push([q.right+16,above,true],[q.left-w-16,above,true]);
+  cands.push([fx-w/2,below,false]);for(const q of avoid)cands.push([q.right+16,below,false],[q.left-w-16,below,false]);
   let tx=clampX(fx-w/2),ty=clampY(below),up=false,ok=false;
-  for(const c of cands){const x=clampX(c[0]),y=clampY(c[1]);if(c[1]+h>innerHeight-10&&!c[2])continue;if(!hit(x,y)){tx=x;ty=y;up=c[2];ok=true;break}}
+  for(const c of cands){const x=clampX(c[0]),y=clampY(c[1]);if(c[1]+h>innerHeight-10&&!c[2])continue;if(c[2]&&c[1]<6)continue;if(!hit(x,y)){tx=x;ty=y;up=c[2];ok=true;break}}
   if(!ok){tx=clampX(fx-w/2);ty=clampY(above);up=true}
+  CO.top=ty;                                                      // the intro puts the small L / R buttons right above the bubble
   if(CO.x<0){CO.x=tx;CO.y=ty}else{CO.x+=(tx-CO.x)*.25;CO.y+=(ty-CO.y)*.25}
   const c2=cls+(up?' up':'');if(c2!==CO.cls){CO.cls=c2;el.className='on '+c2}
   el.style.transform='translate('+CO.x.toFixed(1)+'px,'+CO.y.toFixed(1)+'px)'}
@@ -5595,8 +5616,18 @@ html.tutlight #joystickZone{width:calc(50vw - 70px)}               /* … but ke
 #coach .co-push{width:auto;padding:0 10px;border-radius:17px;background:#555c69;font-size:13px}
 #coach .co-ms{display:inline-flex}
 #coach .co-ic{display:inline-flex}
-#coach .co-mv{animation:coMove 1.6s ease-in-out infinite}
-@keyframes coMove{25%{transform:translate(3px,-2px)}50%{transform:translate(0,-4px)}75%{transform:translate(-3px,-2px)}}
+#coach .jk{animation:1.4s ease-in-out infinite}
+#coach .jd-dr{animation-name:jkDR}#coach .jd-right{animation-name:jkR}#coach .jd-up{animation-name:jkU}#coach .jd-ur{animation-name:jkUR}#coach .jd-down{animation-name:jkD}#coach .jd-left{animation-name:jkL}
+#coach .jd-lr{animation-name:jkLR;animation-duration:1.6s}#coach .jd-all{animation-name:jkAll;animation-duration:2s;animation-timing-function:linear}#coach .jd-over{animation-name:jkOver;animation-duration:1.6s}
+@keyframes jkDR{0%,10%,100%{transform:none}40%,75%{transform:translate(7px,7px)}}
+@keyframes jkR{0%,10%,100%{transform:none}40%,75%{transform:translate(10px,0)}}
+@keyframes jkU{0%,10%,100%{transform:none}40%,75%{transform:translate(0,-10px)}}
+@keyframes jkUR{0%,10%,100%{transform:none}40%,75%{transform:translate(7px,-7px)}}
+@keyframes jkD{0%,10%,100%{transform:none}40%,75%{transform:translate(0,10px)}}
+@keyframes jkL{0%,10%,100%{transform:none}40%,75%{transform:translate(-10px,0)}}
+@keyframes jkLR{0%,100%{transform:translate(-10px,0)}50%{transform:translate(10px,0)}}
+@keyframes jkAll{0%,100%{transform:translate(0,-10px)}25%{transform:translate(10px,0)}50%{transform:translate(0,10px)}75%{transform:translate(-10px,0)}}
+@keyframes jkOver{0%{transform:translate(-9px,4px)}25%{transform:translate(-7px,-7px)}50%{transform:translate(0,-10px)}75%{transform:translate(7px,-7px)}90%,100%{transform:translate(9px,4px)}}
 #coach .co-ar{font-size:21px;color:#e0457b}
 #coach .co-p{opacity:.5;margin:0 1px}
 #coach .co-hold{animation:coPress 1.4s ease-in-out infinite}
