@@ -4788,7 +4788,7 @@ const PC_KPLAN={1:[['down','right'],'AIM ↘ FLOOR'],2:[['right'],'ROLL ⟳'],3:
   6:['swing','SWING ↔'],7:[['right'],'AIM → NEXT BAR'],w0:[['down','right'],'AIM ↘ FLOOR'],w1:[['up','right'],'AIM ↗ WALL'],w2:[['up','right'],'KEEP AIMING ↗'],w3:[['right'],'AIM → WALL']};
 /* a glove on the next bar (step "Let go… catch the next bar!") shows where to grab */
 function thBarGlove(t){const pl=players[0];if(!T||!pl||T.step!==7||T.lock>0||T.done||T.swapT>0||T.room!=='bars'||holdOn(pl,BAR2))return;
-  if(pl.hands.some(h=>grip(h)))return;                            // only while flying (let go) – not while still swinging
+  if(pl.hands.some(h=>grip(h))||!T.trap)return;                   // only while flying (let go) – not while swinging, not while standing on the floor
   const g=T.g,s=cam.z*VS,ox=W/2-cam.x*s,oy=H/2-cam.y*s,x=BAR2[0]+60,y=BAR2[1]+BAR2[3]/2,sd=freeSide();
   g.save();g.translate(ox,oy);g.scale(s,s);
   const u=(t%1.6)/1.6,c=u>.35&&u<.85,sc=1+(u>.35&&u<.5?Math.sin((u-.35)/.15*Math.PI)*.18:0);
@@ -4927,7 +4927,9 @@ function coText(dev,pl){                                         // → [style, 
     if(fh.length===1)return['',roll()];
     return['',grab('dr','r')]}
   if(st===5)return holdOn(pl,BAR1)?['','Keep holding ✊']:['',grab('up','r')];
-  if(st===6)return['',coDir(dev,'lr')+' Swing!'];
+  // swing level, back on the floor (start / after a fall): FIRST grab the bar again
+  if((st===6||st===7)&&!T.trap&&!holdOn(pl,BAR1))return['',grab('up','r')];
+  if(st===6)return holdOn(pl,BAR1)?['',coDir(dev,'lr')+' Swing!']:['',grab('up','r')];
   if(st===7){const h1=pl.hands.find(h=>grip(h)&&inRect(h.ax,h.ay,BAR1,24));
     if(h1)return pl.v.x>120&&pl.v.y<-20?['go',LET+' '+B(side(h1),'rel')+' NOW!']:['',coDir(dev,'lr')+' Swing… wait for it'];
     return['',grab('right',freeSide()<0?'l':'r')]}
@@ -4944,7 +4946,7 @@ function coach(t){
   const pl=players[0];
   if(!T||!pl||T.ending||T.done||T.swapT>0){if(CO.el)CO.el.classList.remove('on');window.__simScale=1;return}
   coBuild();const dev=coDev(),st=T.step,el=CO.el;
-  const fly=(st===7||st===W0+3)&&!pl.hands.some(h=>grip(h));      // slow motion ONLY while flying after letting go (bar → bar, floor → wall)
+  const fly=((st===7&&T.trap)||st===W0+3)&&!pl.hands.some(h=>grip(h));   // in the air after letting go (not while standing on the floor)      // slow motion ONLY while flying after letting go (bar → bar, floor → wall)
   CO.sim=(CO.sim||1)+((fly?.45:1)-(CO.sim||1))*.15;window.__simScale=CO.sim;   // eased in / out
   // intro (first seconds, mouse / keys / pad; phones have their own intro on the real buttons): which control = which glove
   if(dev!=='touch'){if(CO.id!==T.id&&st===0){CO.id=T.id;CO.t0=t}
@@ -4963,17 +4965,17 @@ function coach(t){
   const avoid=[];if(dev==='touch')for(const id of ['joystickBase','mcBtns']){const e=$t(id),q=e&&e.getBoundingClientRect();if(q&&q.width)avoid.push(q)}
   {const q=$t('tutpos')&&$t('tutpos').getBoundingClientRect();if(q&&q.width)avoid.push({left:q.left,right:q.right,top:q.top,bottom:q.bottom-8,card:1})}   // the title card at the top (its shadow may touch)
   const hit=(x,y)=>avoid.some(q=>{const m=q.card?4:12;return x<q.right+m&&x+w>q.left-m&&y<q.bottom+m&&y+h>q.top-m});
-  // ABOVE the frog and above the platform it holds (bubble never covers the frog / the bar), x follows the frog
-  let topRef=fy-(R+ARM*.75)*s;for(const q of pl.hands)if(grip(q))topRef=Math.min(topRef,H/2+(q.ay-cam.y)*s-34*s);
-  if(T.room==='bars')topRef=Math.min(topRef,H/2+(Math.min(BAR1[1],BAR2[1])-cam.y)*s-4);   // swing level: one steady height above both bars – only x follows the frog
-  const below=fy+(R+18)*s+16,above=topRef-h-12,cands=[[fx-w/2,above,true]];   // every "above" place first, "below" only as a last resort
-  for(const q of avoid)cands.push([q.right+16,above,true],[q.left-w-16,above,true]);
-  cands.push([fx-w/2,below,false]);for(const q of avoid)cands.push([q.right+16,below,false],[q.left-w-16,below,false]);
-  let tx=clampX(fx-w/2),ty=clampY(below),up=false,ok=false;
-  for(const c of cands){const x=clampX(c[0]),y=clampY(c[1]);if(c[1]+h>innerHeight-10&&!c[2])continue;if(c[2]&&c[1]<6)continue;if(!hit(x,y)){tx=x;ty=y;up=c[2];ok=true;break}}
-  if(!ok){tx=clampX(fx-w/2);ty=clampY(above);up=true}
+  // ONE FIXED HEIGHT per level, always ABOVE the platform / bars – the bubble never jumps up and down.
+  // Swing level: x is fixed too (above the first bar). Floor / wall levels: x follows the frog slowly.
+  const sY=wy=>H/2+(wy-cam.y)*s,sX=wx=>W/2+(wx-cam.x)*s;let baseY,ax;
+  if(T.room==='bars'){baseY=sY(Math.min(BAR1[1],BAR2[1]))-8;ax=sX(BAR1[0]+BAR1[2]/2)}
+  else{const F=T.room==='wall'?FLOOR_W:FLOOR;baseY=sY(F[1])-(R+ARM)*s-10;ax=fx}
+  let ty=clampY(baseY-h-10),tx=clampX(ax-w/2);const up=true;
+  if(hit(tx,ty)){let best=null;                                   // title card / buttons in the way: same height, move sideways (never below)
+    for(const q of avoid)for(const x of [q.right+16,q.left-w-16]){const X=clampX(x);if(!hit(X,ty)&&(best==null||Math.abs(X-tx)<Math.abs(best-tx)))best=X}
+    if(best!=null)tx=best}
   CO.top=ty;                                                      // the intro puts the small L / R buttons right above the bubble
-  if(CO.x<0){CO.x=tx;CO.y=ty}else{CO.x+=(tx-CO.x)*.25;CO.y+=(ty-CO.y)*.25}
+  if(CO.x<0||CO.room!==T.room){CO.x=tx;CO.y=ty;CO.room=T.room}else{CO.x+=(tx-CO.x)*(T.room==='bars'?1:.08);CO.y=ty}
   const c2=cls+(up?' up':'');if(c2!==CO.cls){CO.cls=c2;el.className='on '+c2}
   el.style.transform='translate('+CO.x.toFixed(1)+'px,'+CO.y.toFixed(1)+'px)'}
 
