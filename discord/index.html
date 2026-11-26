@@ -4882,7 +4882,7 @@ function pcCtl(t){
 const CO={el:null,x:-1,y:-1,html:'',cls:'',id:-1,t0:0,newId:-1,newT:0};
 function coBuild(){if(CO.el)return;const d=document.createElement('div');d.id='coach';d.innerHTML='<div class="co-new">✨ NEW</div><div class="co-in"></div>';
   document.body.appendChild(d);CO.el=d;CO.in=d.querySelector('.co-in');try{pcBuild();PC.cv.style.display='none'}catch(e){}}   // pcBuild = mouse / key listeners
-function coHide(){if(CO.el)CO.el.classList.remove('on');window.__simScale=1}
+function coHide(){if(CO.el)CO.el.classList.remove('on');window.__simScale=1;CO.sim=1}
 function coDev(){const mc=$t('mobileControls');if(mc&&mc.style.display==='block')return 'touch';return T.dev==='pad'?'pad':T.dev==='key'?'key':'mouse'}
 function coMouse(k){return '<svg viewBox="0 0 40 56" width="26" height="36"><path d="M20 2C10 2 3 9 3 20v16c0 10 7 18 17 18s17-8 17-18V20C37 9 30 2 20 2z" fill="#fff" stroke="#1d2a44" stroke-width="3"/><path d="'+
   (k==='l'?'M19 3.5C11 4 4.5 10 4.5 21.5H19z':'M21 3.5C29 4 35.5 10 35.5 21.5H21z')+'" fill="'+TH_COL[k]+'"/><path d="M3 23h34M20 3v20" stroke="#1d2a44" stroke-width="2.5"/></svg>'}
@@ -4891,8 +4891,8 @@ function coBtn(dev,k,act){const c=TH_COL[k],a=act?' co-'+act:'';                
   if(dev==='key')return '<i class="co-k'+a+'" style="background:'+c+';color:#fff">'+keyLabel(KB[k==='l'?'handL':'handR'])+'</i>';
   if(dev==='pad')return '<i class="co-k'+a+'" style="background:'+c+';color:#fff">'+(k==='l'?'LB':'RB')+'</i>';
   return '<i class="co-ms'+a+'">'+coMouse(k)+'</i>'}
-function coDir(dev,d){                                            // where to aim: the player's keys, or the mouse / joystick / stick + an arrow
-  if(dev==='key'){const m={up:['up'],down:['down'],left:['left'],right:['right'],dr:['down','right'],ur:['up','right'],lr:['left','right'],all:['up','left','down','right']}[d]||[];
+function coDir(dev,d){                                            // where to aim: on PC always the player's movement keys (ZQSD…); joystick / stick + an arrow otherwise
+  if(dev==='key'||dev==='mouse'){const m={up:['up'],down:['down'],left:['left'],right:['right'],dr:['down','right'],ur:['up','right'],lr:['left','right'],all:['up','left','down','right']}[d]||[];
     return m.map(q=>'<i class="co-k co-kd">'+keyLabel(KB[q])+'</i>').join(d==='lr'?' ↔ ':d==='all'?' ':' + ')}
   const ar={up:'↑',down:'↓',left:'←',right:'→',ur:'↗',dr:'↘',lr:'← →',all:'',over:'⤴'}[d]||'';
   const ic=dev==='touch'?'<svg viewBox="0 0 36 36" width="30" height="30"><circle cx="18" cy="18" r="15" fill="#dfe4ec" stroke="#1d2a44" stroke-width="2.5"/><circle cx="18" cy="18" r="7" fill="#1d2a44"/></svg>'   // joystick
@@ -4904,7 +4904,7 @@ function coText(dev,pl){                                         // → [style, 
   const st=T.step,TOUCH=dev==='touch',G=TOUCH?'TAP':'HOLD',GA=TOUCH?'tap':'hold',LET=TOUCH?'TAP':'LET GO',B=(k,a)=>coBtn(dev,k,a);
   const side=h=>h.side<0?'l':'r',on=(k,R_)=>pl.hands.some(h=>side(h)===k&&grip(h)&&(!R_||inRect(h.ax,h.ay,R_,24)));
   const grab=(d,k)=>coDir(dev,d)+'<b class="co-p">+</b>'+G+' '+B(k,GA);
-  const roll=()=>dev==='key'?coDir(dev,'right')+' Roll over ⟳':coDir(dev,'over')+' Roll over ⟳';
+  const roll=()=>dev==='key'||dev==='mouse'?coDir(dev,'right')+' Roll over ⟳':coDir(dev,'over')+' Roll over ⟳';
   if(T.nudge>0)return['warn',T.nudgeMsg];
   if(st===0)return['',coDir(dev,'all')+' Move your hands'];
   if(st===1||st===W0)return floorHands(pl).length||wallFloor(pl).length?['','Keep holding ✊']:['',grab('dr','r')];
@@ -4929,7 +4929,8 @@ function coach(t){
   const pl=players[0];
   if(!T||!pl||T.ending||T.done||T.swapT>0){if(CO.el)CO.el.classList.remove('on');window.__simScale=1;return}
   coBuild();const dev=coDev(),st=T.step,el=CO.el;
-  window.__simScale=(st>=5&&st<=7)||st===W0+3?.6:1;              // slow motion where things happen fast
+  const fly=(st===7||st===W0+3)&&!pl.hands.some(h=>grip(h));      // slow motion ONLY while flying after letting go (bar → bar, floor → wall)
+  CO.sim=(CO.sim||1)+((fly?.45:1)-(CO.sim||1))*.15;window.__simScale=CO.sim;   // eased in / out
   // intro (first seconds, mouse / keys / pad; phones have their own intro on the real buttons): which control = which glove
   if(dev!=='touch'){if(CO.id!==T.id&&st===0){CO.id=T.id;CO.t0=t}
     const u=window.__thFreeze!=null?window.__thFreeze:(CO.id===T.id?t-CO.t0:99);
@@ -4942,9 +4943,15 @@ function coach(t){
   if(r[1]!==CO.html){CO.html=r[1];CO.in.innerHTML=r[1]}
   el.classList.add('on');
   const w=el.offsetWidth,h=el.offsetHeight,s=cam.z*VS,fx=W/2+(pl.p.x-cam.x)*s,fy=H/2+(pl.p.y-cam.y)*s;
-  let tx=fx-w/2,ty=fy+(R+18)*s+16,up=false;                      // right under the frog …
-  if(ty+h>innerHeight-10){ty=fy-(R+ARM)*s-h-16;up=true}           // … or above it when there is no room below
-  tx=Math.max(8,Math.min(innerWidth-w-8,tx));ty=Math.max(8,Math.min(innerHeight-h-8,ty));
+  // right under the frog … or above it … but never on top of the joystick or the L / R / PUSH buttons (phones)
+  const clampX=x=>Math.max(8,Math.min(innerWidth-w-8,x)),clampY=y=>Math.max(8,Math.min(innerHeight-h-8,y));
+  const avoid=[];if(dev==='touch')for(const id of ['joystickBase','mcBtns']){const e=$t(id),q=e&&e.getBoundingClientRect();if(q&&q.width)avoid.push(q)}
+  const hit=(x,y)=>avoid.some(q=>x<q.right+12&&x+w>q.left-12&&y<q.bottom+12&&y+h>q.top-12);
+  const below=fy+(R+18)*s+16,above=fy-(R+ARM)*s-h-16,cands=[[fx-w/2,below,false],[fx-w/2,above,true]];
+  for(const q of avoid){cands.push([q.right+16,below,false],[q.left-w-16,below,false],[q.right+16,above,true],[q.left-w-16,above,true])}
+  let tx=clampX(fx-w/2),ty=clampY(below),up=false,ok=false;
+  for(const c of cands){const x=clampX(c[0]),y=clampY(c[1]);if(c[1]+h>innerHeight-10&&!c[2])continue;if(!hit(x,y)){tx=x;ty=y;up=c[2];ok=true;break}}
+  if(!ok){tx=clampX(fx-w/2);ty=clampY(above);up=true}
   if(CO.x<0){CO.x=tx;CO.y=ty}else{CO.x+=(tx-CO.x)*.25;CO.y+=(ty-CO.y)*.25}
   const c2=cls+(up?' up':'');if(c2!==CO.cls){CO.cls=c2;el.className='on '+c2}
   el.style.transform='translate('+CO.x.toFixed(1)+'px,'+CO.y.toFixed(1)+'px)'}
@@ -5565,6 +5572,8 @@ window.__extra={levelsWin,giftWin,tick,reset:()=>{EXS={ads:0,on:false};exSave();
 @keyframes thNewGlow{50%{background:#ffb020;border-color:#fff;box-shadow:0 0 0 6px #ffc933,0 0 34px 10px rgba(255,201,51,.9);transform:scale(1.08)}}
 #thnew{position:fixed;z-index:71;pointer-events:none;transform:translateX(-50%);padding:7px 16px;border-radius:999px;background:linear-gradient(135deg,#ffb020,#ff5f6d 60%,#c04ee8);color:#fff;font:900 16px/1.2 ui-rounded,"Nunito",system-ui,sans-serif;white-space:nowrap;box-shadow:0 4px 0 #b23a6b,0 0 18px rgba(255,201,51,.7);animation:thNewTag 3.6s ease forwards}
 #tut .th{display:none!important}
+html.tutlight #mobileControls{z-index:9}                           /* tutorial: L / R / PUSH and the joystick above the yellow glows */
+html.tutlight #joystickZone{width:calc(50vw - 70px)}               /* … but keep the Skip button (bottom centre) clickable */
 #taphand .th-tip{display:none!important}
 #coach{position:fixed;left:0;top:0;z-index:72;pointer-events:none;display:none;will-change:transform}
 #coach.on{display:block}
