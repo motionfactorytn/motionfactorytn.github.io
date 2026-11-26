@@ -3063,7 +3063,7 @@ function netTick(dt,raw){if(raw===undefined)raw=dt;
 /* fixed-timestep accumulator: the simulation advances in exact 1/60 s ticks (3 substeps of 1/180 s, the same step the original used at 60 FPS).
    Catch-up is bounded (maxTicks per frame and a time budget); simulation time that still cannot be caught up beyond maxAcc is counted in FT.dropped (never silent). */
 function ftAdvance(raw){
-  FT.acc+=raw;let ran=0;const t0=performance.now(),keep=FDT;
+  FT.acc+=raw*(window.__simScale||1);let ran=0;const t0=performance.now(),keep=FDT;
   while(FT.acc>=FT.TICK-1e-7){
     if(ran>=FT.maxTicks||(ran>0&&performance.now()-t0>FT.maxMs)){FT.budgetHits++;break}
     FDT=FT.TICK; // physics code that reads FDT (coinShove) sees the fixed tick length
@@ -4295,7 +4295,7 @@ const HINTS={
     pj:'Swing forward and let go of the <kbd>click</kbd> — keep <kbd>Shift</kbd> held!'},
   key:{move:'Aim with <kbd>{up}</kbd> <kbd>{left}</kbd> <kbd>{down}</kbd> <kbd>{right}</kbd>',
     grabF:'Aim down in front of you with <kbd>{down}</kbd> <kbd>{right}</kbd> and hold <kbd>{hR}</kbd>',
-    roll:'Keep holding <kbd>{hR}</kbd> and turn <kbd>{left}</kbd> → <kbd>{up}</kbd> → <kbd>{right}</kbd> ⟳',
+    roll:'Keep holding <kbd>{hR}</kbd> and press <kbd>{right}</kbd> to roll ⟳',
     other:'Aim ahead and hold <kbd>{hL}</kbd> too',
     flag:'Let go of the back hand, roll ⟳, grab ahead — again and again!',
     bar:'Aim up at the bar and hold <kbd>{hL}</kbd> or <kbd>{hR}</kbd>',
@@ -4388,7 +4388,7 @@ function begin(target){
   setStep(0);T.raf=requestAnimationFrame(tick)}
 function teardown(){
   if(!T)return;cancelAnimationFrame(T.raf);removeEventListener('keydown',onKey,true);removeEventListener('pointerdown',onPtr,true);removeEventListener('pointermove',onPtr,true);
-  el.root.classList.remove('on','show','ok');T=null;tapHide();document.documentElement.classList.remove('tutlight');try{updateThemeColors()}catch(e){}}
+  el.root.classList.remove('on','show','ok');T=null;tapHide();thReset();pcHide();coHide();document.documentElement.classList.remove('tutlight');try{updateThemeColors()}catch(e){}}
 function finish(how){                                            // fade out → restore the real game → open the mode the player picked
   if(!T||T.ending)return;T.ending=true;if(how!=='complete')markDone(how);
   const id=T.target;el.fade.classList.add('on');
@@ -4621,7 +4621,7 @@ function draw(t){
   if(!pl||T.swapT>0)return;
   g.save();g.translate(ox,oy);g.scale(s,s);g.lineCap='round';g.lineJoin='round';
   const st=T.step,px=pl.p.x,py=pl.p.y,live=T.lock<=0&&!T.done;
-  if(live)drawGhost(g,t,pl); // v90: behind every other hint
+  /* Discord: no ghost frog */
   if(T.room==='floor')flag(g,FLAG_X,FLOOR[1],t,st===4);
   if(st===0&&live){                                              // a ghost glove sweeping an arc around the head
     const th0=-Math.PI/2,am=1.15,u=Math.min(1,T.travel/NEED_TRAVEL),al=.9*(1-u*.65),r=98,th=th0+Math.sin(t*2.1)*am;
@@ -4665,17 +4665,66 @@ function draw(t){
 function tick(now){
   if(!T)return;T.raf=requestAnimationFrame(tick);
   const dt=Math.min(.05,Math.max(0,(now-T.last)/1000));T.last=now;
-  try{if(scene!=='play'){T.ro++;if(T.ro>3){finish('error');return}}else T.ro=0;update(dt);if(T)draw(now/1000);if(T)try{tapHand(now/1000)}catch(e){console.warn('[tap hand]',e);tapHide()}}
+  try{if(scene!=='play'){T.ro++;if(T.ro>3){finish('error');return}}else T.ro=0;update(dt);if(T)draw(now/1000);try{thBarGlove(now/1000)}catch(e){}if(T)try{tapHand(now/1000)}catch(e){console.warn('[tap hand]',e);tapHide()}if(T)try{coach(now/1000)}catch(e){console.warn('[coach]',e);coHide()}}
   catch(e){console.warn('[tutorial] error – falling back to the game',e);if(T){T.ending=false;finish('error')}}}
 
 /* ---------- DISCORD: tap hand on the L / R touch buttons (they toggle: tap = grab, tap again = let go) ---------- */
-const TH={el:null,mode:'',t0:0,ev:-1,down:{l:0,r:0}};
+const TH={el:null,mode:'',t0:0,ev:-1,down:{l:0,r:0},flash:{l:0,r:0},introAl:0,introId:-1,introT0:0,off:{l:[0,0],r:[0,0]},pushId:-1};
+/* INTRO (first seconds of the tutorial): the L and R buttons pop up above the frog, the coloured links show which glove each one
+   moves, then the links fade and the buttons fly down to their normal place (bottom right). */
+const TH_IN={pop:.45,linkIn:.35,linkOut:3.4,fly:4,end:4.9};
+function thBtnSet(k,dx,dy,sc,op){const b=$t(k==='l'?'mcL':'mcR');if(!b)return;TH.off[k]=[dx,dy];
+  b.style.transform=(dx||dy||sc!==1)?'translate('+dx.toFixed(1)+'px,'+dy.toFixed(1)+'px) scale('+sc.toFixed(3)+')':'';b.style.opacity=op==null?'':String(op)}
+function thIntro(t,pl){                                           // true while the intro is running
+  if(TH.introId===T.id&&TH.introT0<0)return false;               // already played for this tutorial
+  if(TH.introId!==T.id){if(T.step!==0)return false;TH.introId=T.id;TH.introT0=t}
+  const u=t-TH.introT0;
+  if(u>=TH_IN.end){thBtnSet('l',0,0,1,null);thBtnSet('r',0,0,1,null);TH.introAl=0;TH.introT0=-1;return false}
+  const s=cam.z*VS,fx=W/2+(pl.p.x-cam.x)*s,fy=H/2+(pl.p.y-cam.y)*s,ty=Math.max(48,fy-R*s-112);TH.cap=[fx,fy+R*s+20];
+  for(const k of ['l','r']){const b=$t(k==='l'?'mcL':'mcR');if(!b)continue;const r=b.getBoundingClientRect(),o=TH.off[k];
+    const hx=r.left+r.width/2-o[0],hy=r.top+r.height/2-o[1];      // the button's normal place (without our offset)
+    const tx=fx+(k==='l'?-46:46),ax=tx-hx,ay=ty-hy;
+    if(u<TH_IN.fly){const p=Math.min(1,u/TH_IN.pop),sc=u<TH_IN.pop?Math.max(.01,1+2.2*Math.pow(p-1,3)+1.2*Math.pow(p-1,2)):1;thBtnSet(k,ax,ay,sc,1)}
+    else{if(!TH.flyFrom)TH.flyFrom={};if(!TH.flyFrom[k])TH.flyFrom[k]=[ax,ay];const f=ease((u-TH_IN.fly)/(TH_IN.end-TH_IN.fly)),F=TH.flyFrom[k];
+      thBtnSet(k,F[0]*(1-f),F[1]*(1-f),1+.15*Math.sin(f*Math.PI),1-.8*f)}}
+  if(u<TH_IN.fly)TH.flyFrom=null;
+  TH.introAl=u<TH_IN.linkIn?0:u<TH_IN.linkIn+.3?(u-TH_IN.linkIn)/.3:u<TH_IN.linkOut?1:Math.max(0,1-(u-TH_IN.linkOut)/.5);
+  return true}
+/* PUSH / JUMP stays hidden in the tutorial until it is needed ("Hold PUSH to charge"), then it appears as a NEW ability */
+function thPush(){const bp=$t('mcPow');if(!bp)return;
+  if(TH.pushId===T.id)return;
+  if(T.step<W0+2){bp.style.visibility='hidden';return}
+  TH.pushId=T.id;bp.style.visibility='';bp.classList.remove('thnew');void bp.offsetWidth;bp.classList.add('thnew');
+  setTimeout(()=>bp.classList.remove('thnew'),4200);
+  const r=bp.getBoundingClientRect(),tag=document.createElement('div');tag.id='thnew';tag.innerHTML='✨ NEW: <b>PUSH / JUMP</b>';
+  tag.style.left=(r.left+r.width/2)+'px';tag.style.top=Math.max(8,r.top-58)+'px';document.body.appendChild(tag);setTimeout(()=>tag.remove(),3600);
+  try{fxBurst(r.left+r.width/2,r.top+r.height/2,16)}catch(e){}
+  [[520,780],[780,1040],[1040,1560]].forEach((f,k)=>setTimeout(()=>blip(f[0],f[1],.14,'triangle',.13),k*110))}
+function thReset(){thBtnSet('l',0,0,1,null);thBtnSet('r',0,0,1,null);TH.introAl=0;TH.flyFrom=null;if(TH.introT0>=0)TH.introT0=-1;
+  const bp=$t('mcPow');if(bp){bp.style.visibility='';bp.classList.remove('thnew')}const tg=$t('thnew');if(tg)tg.remove()}
+const TH_COL={l:'#3d9bff',r:'#ff7a2e'};
+/* which button moves which glove: dotted links from the L / R buttons to the L / R gloves.
+   Always on during the first step ("Move your hands"), then a short flash every time the player taps L or R. */
+function thLinks(t,pl,src,gg){
+  const g=gg||T.g,s=cam.z*VS,ox=W/2-cam.x*s,oy=H/2-cam.y*s,now=performance.now(),intro=TH.introAl>0;let any=false;
+  for(const k of ['l','r']){
+    const al=intro?TH.introAl:(TH.flash[k]?Math.max(0,1-(now-TH.flash[k])/1000):0);if(al<=0)continue;
+    const b=src===null?null:src?src(k):$t(k==='l'?'mcL':'mcR'),r=b&&b.getBoundingClientRect(),h=pl.hands.find(q=>(q.side<0?'l':'r')===k);if(!h)continue;
+    const x1=ox+h.x*s,y1=oy+h.y*s,col=TH_COL[k],p=.5+.5*Math.sin(t*6);
+    g.save();g.globalAlpha=al;g.lineCap='round';
+    g.strokeStyle=col;g.lineWidth=5;                              // no lines (cleaner screen): only the coloured circles + letters
+    if(r&&r.width){g.beginPath();g.arc(r.left+r.width/2,r.top+r.height/2,r.width/2+6,0,7);g.stroke()}   // ring on the button (when there is one on screen)
+    g.beginPath();g.arc(x1,y1,26*Math.max(.7,s)+4*p,0,7);g.stroke();                           // ring on the glove
+    const tx=x1,ty=y1-34*Math.max(.7,s)-12;g.fillStyle=col;g.beginPath();g.roundRect(tx-17,ty-14,34,28,14);g.fill();   // a tag with the same letter
+    g.fillStyle='#fff';g.font='900 18px ui-rounded,system-ui,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(k.toUpperCase(),tx,ty+1);
+    g.restore();any=true}
+  return intro&&any}
 const TH_SVG='<svg viewBox="0 0 60 60" width="60" height="60"><path d="M21 6c0-3 2-5 5-5s5 2 5 5v20l2-1c2-1 5 0 6 2l1 1 2-1c2-1 5 0 6 2l1 1 1-.4c2-.6 5 .6 5 3.4v12c0 8-6 14-14 14h-6c-5 0-9-2-12-6L5 37c-2-2-1-5 1-6 2-2 5-1 7 1l8 8z" fill="#ffd9b0" stroke="#1d2a44" stroke-width="3" stroke-linejoin="round"/><path d="M31 26v9M39 29v7M47 31v6" stroke="#1d2a44" stroke-width="2.5" stroke-linecap="round" opacity=".55"/></svg>';
 function thBuild(){if(TH.el)return;const d=document.createElement('div');d.id='taphand';
   d.innerHTML='<div class="th-ring"><b>HOLDING</b></div><div class="th-rip"></div><div class="th-hand">'+TH_SVG+'</div><div class="th-tip"></div>';
   document.body.appendChild(d);TH.el=d;TH.ring=d.querySelector('.th-ring');TH.rip=d.querySelector('.th-rip');TH.hand=d.querySelector('.th-hand');TH.tip=d.querySelector('.th-tip');
   for(const [id,k] of [['mcL','l'],['mcR','r']]){const b=$t(id);if(!b)continue;     // to notice a player who HOLDS the button
-    b.addEventListener('pointerdown',()=>{TH.down[k]=performance.now()},true);
+    b.addEventListener('pointerdown',()=>{TH.down[k]=TH.flash[k]=performance.now()},true);
     const up=()=>{TH.down[k]=0};b.addEventListener('pointerup',up,true);b.addEventListener('pointercancel',up,true)}}
 function tapHide(){if(TH.el)TH.el.classList.remove('on');TH.mode=''}
 function thTarget(st,pl){                                         // which button the hand shows on this step, and how
@@ -4691,14 +4740,24 @@ const TH_POSE={cycle:{P:3.8,k:[[0,TH_AWAY],[.35,TH_HOV],[.45,TH_PR],[.6,TH_HOV],
   on:{P:2.6,k:[[0,TH_AWAY],[.35,TH_HOV],[.45,TH_PR],[.6,TH_HOV],[1.1,TH_LIFT],[1.9,TH_LIFT],[2.25,TH_AWAY],[2.6,TH_AWAY]]}};
 TH_POSE.off=TH_POSE.on;
 function thEvents(m,K){                                           // [time, button looks closed, caption, ripple]
-  if(m==='cycle')return[[0,false,'Watch: just <b>TAP</b> '+K,0],[.45,true,'TAP! ✊ The hand grabs',1],[1,true,'It stays closed — <b>no need to hold!</b>',0],[2.4,false,'Tap '+K+' again = let go ✋',1]];
-  if(m==='on')return[[0,false,'Just <b>TAP</b> '+K+' to grab',0],[.45,true,'TAP = grab ✊ (no need to hold)',1]];
-  return[[0,true,'Tap '+K+' again to let go',0],[.45,false,'TAP again = let go ✋',1]]}
+  if(m==='cycle')return[[0,false,'<b>TAP</b> '+K,0],[.45,true,'<b>TAP</b> = grab ✊',1],[1,true,'No need to hold',0],[2.4,false,'<b>TAP</b> again = let go',1]];   // short: one idea each
+  if(m==='on')return[[0,false,'<b>TAP</b> '+K,0],[.45,true,'<b>TAP</b> = grab ✊',1]];
+  return[[0,true,'<b>TAP</b> '+K,0],[.45,false,'<b>TAP</b> again = let go',1]]}
 function tapHand(t){
   const pl=players[0],live=!!(T&&pl&&T.lock<=0&&!T.done&&!T.ending&&!(T.swapT>0)),now=performance.now();
   for(const k of ['l','r']){const d=TH.down[k];if(d>0&&now-d>650&&live){TH.down[k]=-1;nudge('Just <b>TAP</b> it — no need to hold! Tap again to let go',3.4)}}
-  const tg=live?thTarget(T.step,pl):null;if(!tg){tapHide();return}
-  thBuild();const b=$t(tg.k==='l'?'mcL':'mcR'),r=b&&b.getBoundingClientRect();if(!r||!r.width){tapHide();return}
+  const mc=$t('mobileControls');if(!T||!pl||T.ending||!mc||mc.style.display!=='block'){tapHide();return}
+  if(!T.done)thPush();
+  thBuild();
+  const intro=thIntro(t,pl);                                      // the intro keeps running during "Nice!" pauses too
+  if(thLinks(t,pl)||intro){                                              // first step: only the links + "L button = L glove" caption
+    TH.mode='links';TH.el.classList.add('on','links');TH.tip.style.visibility=intro&&TH.introAl<=0?'hidden':'';
+    TH.tip.innerHTML='<b style="color:'+TH_COL.l+'">L</b> = left glove &nbsp;·&nbsp; <b style="color:'+TH_COL.r+'">R</b> = right glove';
+    const a=$t('mcL').getBoundingClientRect(),c=$t('mcR').getBoundingClientRect(),tw=TH.tip.offsetWidth||260,mx=intro&&TH.cap?TH.cap[0]:(a.left+c.right)/2;
+    TH.tip.style.left=Math.max(8,Math.min(innerWidth-tw-8,mx-tw/2))+'px';
+    TH.tip.style.top=(intro&&TH.cap?Math.min(innerHeight-TH.tip.offsetHeight-8,TH.cap[1]):Math.max(8,Math.min(a.top,c.top)-TH.tip.offsetHeight-22))+'px';return}
+  TH.el.classList.remove('links');TH.tip.style.visibility='';if(!live){tapHide();return}
+  const tg=thTarget(T.step,pl);if(!tg){tapHide();return}const b=$t(tg.k==='l'?'mcL':'mcR'),r=b&&b.getBoundingClientRect();if(!r||!r.width){tapHide();return}
   const id=tg.m+tg.k;if(id!==TH.mode){TH.mode=id;TH.t0=t;TH.ev=-1}
   const A=TH_POSE[tg.m],u=(t-TH.t0)%A.P,K=tg.k.toUpperCase(),E=thEvents(tg.m,K);
   let i=0;while(i<A.k.length-2&&A.k[i+1][0]<=u)i++;
@@ -4712,6 +4771,183 @@ function tapHand(t){
   TH.hand.style.transform='translate('+(cx-25+q(0)).toFixed(1)+'px,'+(cy-3+q(1)).toFixed(1)+'px) scale('+q(2).toFixed(3)+')';
   const tw=TH.tip.offsetWidth||200;TH.tip.style.left=Math.max(8,Math.min(innerWidth-tw-8,cx-tw/2))+'px';TH.tip.style.top=Math.max(8,r.top-TH.tip.offsetHeight-22)+'px';
   TH.el.classList.add('on')}
+
+/* ---------- DISCORD: PC controls card – an animated mouse (left click = L glove, right click = R glove, press and HOLD to grab)
+   + the movement keys the player really uses (from Controls settings). Same intro as on phones: it starts above the frog with
+   links to the gloves, then flies to the bottom-right corner and keeps showing what to press. ---------- */
+const PC={el:null,id:-1,t0:0,mode:'',t0m:0,dn:{l:0,r:0},kd:{},kl:'',capS:null,powId:-1};
+const PC_MOUSE='<svg viewBox="0 0 80 112" width="80" height="112"><path d="M40 4C20 4 6 18 6 40v34c0 20 15 34 34 34s34-14 34-34V40C74 18 60 4 40 4z" fill="#f4f6fb" stroke="#1d2a44" stroke-width="4"/>'+
+  '<path class="pm-l" d="M38 6.2C21 7.4 8.2 21 8.2 40v8H38z"/><path class="pm-r" d="M42 6.2C59 7.4 71.8 21 71.8 40v8H42z"/>'+
+  '<path d="M6 48h68M40 5v43" stroke="#1d2a44" stroke-width="3.5"/><rect x="36" y="15" width="8" height="17" rx="4" fill="#1d2a44"/>'+
+  '<text x="22" y="37" class="pm-t">L</text><text x="58" y="37" class="pm-t">R</text></svg>';
+const PC_KEYS=['up','left','down','right','power'];
+/* which movement keys each tutorial step needs: [keys, label under the keys] */
+const PC_KPLAN={1:[['down','right'],'AIM ↘ FLOOR'],2:[['right'],'ROLL ⟳'],3:[['right'],'AIM AHEAD →'],4:[['right'],'ROLL →'],5:[['up'],'AIM ↑ BAR'],
+  6:['swing','SWING ↔'],7:[['right'],'AIM → NEXT BAR'],w0:[['down','right'],'AIM ↘ FLOOR'],w1:[['up','right'],'AIM ↗ WALL'],w2:[['up','right'],'KEEP AIMING ↗'],w3:[['right'],'AIM → WALL']};
+/* a glove on the next bar (step "Let go… catch the next bar!") shows where to grab */
+function thBarGlove(t){const pl=players[0];if(!T||!pl||T.step!==7||T.lock>0||T.done||T.swapT>0||T.room!=='bars'||holdOn(pl,BAR2))return;
+  const g=T.g,s=cam.z*VS,ox=W/2-cam.x*s,oy=H/2-cam.y*s,x=BAR2[0]+60,y=BAR2[1]+BAR2[3]/2,sd=freeSide();
+  g.save();g.translate(ox,oy);g.scale(s,s);
+  const u=(t%1.6)/1.6,c=u>.35&&u<.85,sc=1+(u>.35&&u<.5?Math.sin((u-.35)/.15*Math.PI)*.18:0);
+  ghostGlove(g,x,y,-Math.PI/2,c,1,sc*1.3,sd);g.restore()}
+function pcBuild(){if(PC.el)return;const d=document.createElement('div');d.id='pcctl';
+  d.innerHTML='<div class="pc-row"><div class="pc-keys"><i></i><b class="kc" data-k="up"></b><i></i><b class="kc" data-k="left"></b><b class="kc" data-k="down"></b><b class="kc" data-k="right"></b><span class="pc-kl">MOVE</span></div>'+
+    '<div class="pc-m">'+PC_MOUSE+'<div class="pc-hold"><i></i></div></div>'+
+    '<div class="pc-hk"><div class="pc-hk2"><b class="kc hk hk-l"></b><b class="kc hk hk-r"></b></div><div class="pc-hold"><i></i></div></div>'+
+    '<div class="pc-pow"><b class="kc" data-k="power"></b><span class="pc-kl">PUSH</span></div></div><div class="pc-cap"></div>';
+  const cv=document.createElement('canvas');cv.id='pclinks';document.body.appendChild(cv);PC.cv=cv;PC.g=cv.getContext('2d');
+  document.body.appendChild(d);PC.el=d;PC.svg=d.querySelector('.pc-m svg');
+  PC.dev={m:{l:d.querySelector('.pm-l'),r:d.querySelector('.pm-r'),hold:d.querySelector('.pc-m .pc-hold')},k:{l:d.querySelector('.hk-l'),r:d.querySelector('.hk-r'),hold:d.querySelector('.pc-hk .pc-hold')}};
+  PC.cap=d.querySelector('.pc-cap');PC.pow=d.querySelector('.pc-pow');PC.keys={};d.querySelectorAll('b[data-k]').forEach(b=>PC.keys[b.dataset.k]=b);
+  const quick=(d0,what)=>{if(T&&d0>0&&T.lock<=0&&!T.done&&performance.now()-d0<260&&[1,3,5,W0].includes(T.step))nudge('<b>Hold</b> '+what+' down — the glove only grabs while you hold it',3.2)};
+  const btn=e=>e.button===0?'l':e.button===2?'r':'';
+  addEventListener('mousedown',e=>{const k=btn(e);if(!k||!T)return;PC.dn[k]=TH.flash[k]=performance.now()},true);
+  addEventListener('mouseup',e=>{const k=btn(e);if(!k)return;const d0=PC.dn[k];PC.dn[k]=0;quick(d0,'the click')},true);   // a quick click instead of a hold: say so
+  const kk=e=>{const key=String(e.key||'').toLowerCase();return PC_TRACK.filter(k=>window.KB&&KB[k]===key)};
+  addEventListener('keydown',e=>{for(const k of kk(e)){if(!PC.kd[k]){PC.kd[k]=performance.now();if(k==='handL')TH.flash.l=PC.kd[k];if(k==='handR')TH.flash.r=PC.kd[k]}}},true);
+  addEventListener('keyup',e=>{for(const k of kk(e)){const d0=PC.kd[k];delete PC.kd[k];if(k==='handL'||k==='handR')quick(d0,'the key')}},true);
+  addEventListener('blur',()=>{PC.kd={};PC.dn={l:0,r:0}})}
+const PC_TRACK=['up','left','down','right','power','handL','handR'];
+const pcDown=k=>PC.dn[k]>0||!!PC.kd[k==='l'?'handL':'handR'];   // L / R held with the mouse OR with the hand keys
+function pcHide(){if(PC.el){PC.el.classList.remove('on');PC.cv.style.display='none'}}
+function pcTarget(st,pl){                                          // what the mouse shows on this step
+  const dn=pcDown;
+  if(st===1||st===W0)return{k:'r',m:dn('r')?'keep':'hold'};
+  if(st===3){const k=freeSide()<0?'l':'r';return{k,m:dn(k)?'keep':'hold'}}
+  if(st===5)return dn('l')?{k:'l',m:'keep'}:{k:'r',m:dn('r')?'keep':'hold'};
+  if(st===2||st===6)return dn('r')?{k:'r',m:'keep'}:dn('l')?{k:'l',m:'keep'}:null;
+  if(st===4){const fh=floorHands(pl);if(fh.length!==2)return null;const bk=fh.reduce((a,b)=>b.ax<a.ax?b:a),k=bk.side<0?'l':'r';return dn(k)?{k,m:'release'}:null}
+  if(st===7||st===W0+3){const k=dn('r')?'r':dn('l')?'l':'';return k?{k,m:'release'}:{k:'r',m:'hold'}}
+  return null}
+function pcCtl(t){
+  const pl=players[0],mc=$t('mobileControls');
+  if(!T||!pl||T.ending||T.done||(mc&&mc.style.display==='block')||T.dev==='pad'){pcHide();return}
+  pcBuild();const el=PC.el;el.classList.add('on');PC.cv.style.display='';
+  // ONE way of playing at a time (the same one the hints above use): mouse players see the mouse, keyboard players see their keys
+  const KM=T.dev==='key';el.classList.toggle('kmode',KM);const D=PC.dev[KM?'k':'m'],O=PC.dev[KM?'m':'k'];PC.ml=D.l;PC.mr=D.r;
+  for(const q of [O.l,O.r])q.classList.remove('dn','hi');
+  const kl=PC_KEYS.map(k=>keyLabel(KB[k])).join('|')+'|'+keyLabel(KB.handL)+'|'+keyLabel(KB.handR);
+  if(kl!==PC.kl){PC.kl=kl;const a=kl.split('|');PC_KEYS.forEach((k,i)=>PC.keys[k].textContent=a[i]);PC.dev.k.l.textContent=a[5];PC.dev.k.r.textContent=a[6]}  // the player's own keys
+  const st=T.step;
+  if(PC.id!==T.id&&st===0){PC.id=T.id;PC.t0=t}
+  const u=window.__thFreeze!=null?window.__thFreeze:(PC.id===T.id?t-PC.t0:99),intro=u<TH_IN.end;   // __thFreeze: QA only (look at one moment of the intro)
+  // PUSH key: hidden until "Hold PUSH to charge", then it appears as a NEW ability
+  if(PC.powId!==T.id){if(st>=W0+2){PC.powId=T.id;PC.pow.style.display='';PC.pow.classList.remove('new');void PC.pow.offsetWidth;PC.pow.classList.add('new');setTimeout(()=>{if(PC.pow)PC.pow.classList.remove('new')},4200);
+      requestAnimationFrame(()=>{const r=PC.pow.getBoundingClientRect(),tag=document.createElement('div');tag.id='thnew';tag.innerHTML='✨ NEW: <b>PUSH / JUMP</b> = '+keyLabel(KB.power);
+        tag.style.left=(r.left+r.width/2)+'px';tag.style.top=Math.max(8,r.top-52)+'px';document.body.appendChild(tag);setTimeout(()=>tag.remove(),3600);try{fxBurst(r.left+r.width/2,r.top+r.height/2,16)}catch(e){}});
+      [[520,780],[780,1040],[1040,1560]].forEach((f,k)=>setTimeout(()=>blip(f[0],f[1],.14,'triangle',.13),k*110))}
+    else PC.pow.style.display='none'}
+  // the mouse: demo presses + the player's real presses
+  const tg=intro?{m:'intro'}:pcTarget(st,pl);let dn={l:false,r:false},prog=-1,cap='',hi='';
+  const nm=k=>'<b style="color:'+TH_COL[k]+'">'+(KM?keyLabel(KB[k==='l'?'handL':'handR']):(k==='l'?'Left click':'Right click'))+'</b>';
+  if(tg&&tg.m==='intro'){const v=u%3;if(v<1.2){dn.l=true;prog=v/1.2}else if(v>=1.5&&v<2.7){dn.r=true;prog=(v-1.5)/1.2}
+    cap=nm('l')+' = L &nbsp;·&nbsp; '+nm('r')+' = R<br><small><b>HOLD</b> to grab</small>'}
+  else if(tg){const k=tg.k,id=tg.m+k;hi=k;if(id!==PC.mode){PC.mode=id;PC.t0m=t}const v=t-PC.t0m;            // short captions: one idea each
+    if(tg.m==='hold'){const q=v%3.4;if(q<.35)cap='<b>HOLD</b> '+nm(k);else if(q<1.6){dn[k]=true;prog=(q-.35)/1.25;cap='<b>HOLD</b> = grab ✊'}else if(q<2.6){dn[k]=true;prog=1;cap='Keep holding'}else cap='Release = let go'}
+    else if(tg.m==='keep'){prog=1;cap='Keep holding ✊'}
+    else{if(v%2<.9)dn[k]=true;cap='Release = let go'}}
+  else PC.mode='';
+  for(const k of ['l','r'])if(pcDown(k))dn[k]=true;
+  PC.ml.classList.toggle('dn',dn.l);PC.mr.classList.toggle('dn',dn.r);PC.ml.classList.toggle('hi',hi==='l');PC.mr.classList.toggle('hi',hi==='r');
+  O.hold.style.visibility='hidden';D.hold.style.visibility=prog>=0?'':'hidden';if(prog>=0)D.hold.firstChild.style.width=(Math.min(1,prog)*100).toFixed(0)+'%';
+  if(cap!==PC.capS){PC.capS=cap;PC.cap.innerHTML=cap;PC.cap.style.display=cap?'':'none'}
+  // the movement keys: animated while moving is taught, plus the player's real presses
+  // the movement keys: every step shows which keys to press (blinking), plus the player's real presses
+  const kd={},kh={};let klab='MOVE';
+  if(intro||st===0){kd[['up','right','down','left'][Math.floor(t*2.2)%4]]=1;PC.svg.style.transform='translate('+(Math.cos(t*3)*5).toFixed(1)+'px,'+(Math.sin(t*3)*3).toFixed(1)+'px)'}
+  else{PC.svg.style.transform='';const P=PC_KPLAN[st===W0?'w0':st===W0+1?'w1':st===W0+2?'w2':st===W0+3?'w3':st];
+    if(P){klab=P[1];if(P[0]==='swing')kh[Math.floor(t*1.6)%2?'left':'right']=1;else for(const k of P[0])kh[k]=1;
+      const on=Math.sin(t*6)>-.2;for(const k in kh)if(on)kd[k]=1}}
+  for(const k in PC.kd)kd[k]=1;
+  if(!KM)for(const k in kh)delete kh[k];                         // mouse players aim with the mouse: no blinking keys for them
+  for(const k of PC_KEYS){PC.keys[k].classList.toggle('dn',!!kd[k]);PC.keys[k].classList.toggle('hi',!!kh[k])}
+  if(klab!==PC.klab){PC.klab=klab;el.querySelector('.pc-keys .pc-kl').textContent=klab}
+  // where: above the frog during the intro, then it flies to the bottom-right corner
+  const w=el.offsetWidth,h=el.offsetHeight,s=cam.z*VS,fx=W/2+(pl.p.x-cam.x)*s,fy=H/2+(pl.p.y-cam.y)*s,CS=.9;
+  const ax=Math.max(8,Math.min(innerWidth-w-8,fx+(R+ARM)*s+40)),ay=Math.max(8,Math.min(innerHeight-h-8,fy-h*.7)),bx=innerWidth-w*CS-16,by=innerHeight-h*CS-16;   // to the right of the frog, clear of its arms
+  let x=bx,y=by,sc=CS;
+  if(u<TH_IN.fly){sc=u<TH_IN.pop?Math.max(.01,1+2.2*Math.pow(u/TH_IN.pop-1,3)+1.2*Math.pow(u/TH_IN.pop-1,2)):1;x=ax+w*(1-sc)/2;y=ay+h*(1-sc)}
+  else if(intro){const f=ease((u-TH_IN.fly)/(TH_IN.end-TH_IN.fly));x=ax+(bx-ax)*f;y=ay+(by-ay)*f;sc=1+(CS-1)*f}
+  el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px) scale('+sc.toFixed(3)+')';
+  // links from the mouse buttons to the gloves (intro), then a short flash on every click
+  TH.introAl=intro?(u<TH_IN.linkIn?0:u<TH_IN.linkIn+.3?(u-TH_IN.linkIn)/.3:u<TH_IN.linkOut?1:Math.max(0,1-(u-TH_IN.linkOut)/.5)):0;
+  const cv=PC.cv,dp=devicePixelRatio||1;if(cv.width!==Math.round(innerWidth*dp)||cv.height!==Math.round(innerHeight*dp)){cv.width=Math.round(innerWidth*dp);cv.height=Math.round(innerHeight*dp)}
+  const g=PC.g;g.setTransform(dp,0,0,dp,0,0);g.clearRect(0,0,innerWidth,innerHeight);   // own layer above the card, so the links start right at the mouse buttons
+  if(!(T.swapT>0))thLinks(t,pl,k=>k==='l'?PC.ml:PC.mr,g)}
+
+/* ---------- DISCORD v3: COACH – ONE small bubble right under the frog = the only place to read what to do NOW.
+   Each step is cut into tiny actions that follow what the player is doing (e.g. "HOLD R" → "press D to roll" → "LET GO L").
+   The big hint text in the top card, the grey ghost frog and the corner card are gone; the yellow spots / glows on the
+   level still show WHERE. Fast moments (bars, the jump) run in slow motion. ---------- */
+const CO={el:null,x:-1,y:-1,html:'',cls:'',id:-1,t0:0,newId:-1,newT:0};
+function coBuild(){if(CO.el)return;const d=document.createElement('div');d.id='coach';d.innerHTML='<div class="co-new">✨ NEW</div><div class="co-in"></div>';
+  document.body.appendChild(d);CO.el=d;CO.in=d.querySelector('.co-in');try{pcBuild();PC.cv.style.display='none'}catch(e){}}   // pcBuild = mouse / key listeners
+function coHide(){if(CO.el)CO.el.classList.remove('on');window.__simScale=1}
+function coDev(){const mc=$t('mobileControls');if(mc&&mc.style.display==='block')return 'touch';return T.dev==='pad'?'pad':T.dev==='key'?'key':'mouse'}
+function coMouse(k){return '<svg viewBox="0 0 40 56" width="26" height="36"><path d="M20 2C10 2 3 9 3 20v16c0 10 7 18 17 18s17-8 17-18V20C37 9 30 2 20 2z" fill="#fff" stroke="#1d2a44" stroke-width="3"/><path d="'+
+  (k==='l'?'M19 3.5C11 4 4.5 10 4.5 21.5H19z':'M21 3.5C29 4 35.5 10 35.5 21.5H21z')+'" fill="'+TH_COL[k]+'"/><path d="M3 23h34M20 3v20" stroke="#1d2a44" stroke-width="2.5"/></svg>'}
+function coBtn(dev,k,act){const c=TH_COL[k],a=act?' co-'+act:'';                // the L / R grab control, drawn like the real one
+  if(dev==='touch')return '<i class="co-tb'+a+'" style="background:'+c+'">'+k.toUpperCase()+'</i>';
+  if(dev==='key')return '<i class="co-k'+a+'" style="background:'+c+';color:#fff">'+keyLabel(KB[k==='l'?'handL':'handR'])+'</i>';
+  if(dev==='pad')return '<i class="co-k'+a+'" style="background:'+c+';color:#fff">'+(k==='l'?'LB':'RB')+'</i>';
+  return '<i class="co-ms'+a+'">'+coMouse(k)+'</i>'}
+function coDir(dev,d){                                            // where to aim: the player's keys, or the mouse / joystick / stick + an arrow
+  if(dev==='key'){const m={up:['up'],down:['down'],left:['left'],right:['right'],dr:['down','right'],ur:['up','right'],lr:['left','right'],all:['up','left','down','right']}[d]||[];
+    return m.map(q=>'<i class="co-k co-kd">'+keyLabel(KB[q])+'</i>').join(d==='lr'?' ↔ ':d==='all'?' ':' + ')}
+  const ar={up:'↑',down:'↓',left:'←',right:'→',ur:'↗',dr:'↘',lr:'← →',all:'',over:'⤴'}[d]||'';
+  const ic=dev==='touch'?'<svg viewBox="0 0 36 36" width="30" height="30"><circle cx="18" cy="18" r="15" fill="#dfe4ec" stroke="#1d2a44" stroke-width="2.5"/><circle cx="18" cy="18" r="7" fill="#1d2a44"/></svg>'   // joystick
+    :dev==='pad'?'<i class="co-k">STICK</i>'
+    :'<svg viewBox="0 0 40 56" width="24" height="34"><path d="M20 2C10 2 3 9 3 20v16c0 10 7 18 17 18s17-8 17-18V20C37 9 30 2 20 2z" fill="#fff" stroke="#1d2a44" stroke-width="3"/><path d="M3 23h34M20 3v20" stroke="#1d2a44" stroke-width="2.5"/></svg>';  // plain mouse = move it
+  return '<i class="co-ic co-mv">'+ic+'</i>'+(ar?'<b class="co-ar">'+ar+'</b>':'')}
+function coPush(dev){return dev==='touch'?'<i class="co-tb co-push co-hold">PUSH</i>':dev==='pad'?'<i class="co-k co-hold">RT</i>':'<i class="co-k co-hold">'+keyLabel(KB.power)+'</i>'}
+function coText(dev,pl){                                         // → [style, html]
+  const st=T.step,TOUCH=dev==='touch',G=TOUCH?'TAP':'HOLD',GA=TOUCH?'tap':'hold',LET=TOUCH?'TAP':'LET GO',B=(k,a)=>coBtn(dev,k,a);
+  const side=h=>h.side<0?'l':'r',on=(k,R_)=>pl.hands.some(h=>side(h)===k&&grip(h)&&(!R_||inRect(h.ax,h.ay,R_,24)));
+  const grab=(d,k)=>coDir(dev,d)+'<b class="co-p">+</b>'+G+' '+B(k,GA);
+  const roll=()=>dev==='key'?coDir(dev,'right')+' Roll over ⟳':coDir(dev,'over')+' Roll over ⟳';
+  if(T.nudge>0)return['warn',T.nudgeMsg];
+  if(st===0)return['',coDir(dev,'all')+' Move your hands'];
+  if(st===1||st===W0)return floorHands(pl).length||wallFloor(pl).length?['','Keep holding ✊']:['',grab('dr','r')];
+  if(st===2)return on('r')||on('l')?['',roll()]:['',G+' '+B('r',GA)+' on the floor'];
+  if(st===3){const k=freeSide()<0?'l':'r';return['',grab('right',k)]}
+  if(st===4){const fh=floorHands(pl);
+    if(fh.length===2){const bk=fh.reduce((a,b)=>b.ax<a.ax?b:a);return['',LET+' '+B(side(bk),'rel')+' (back hand)']}
+    if(fh.length===1)return['',roll()];
+    return['',grab('dr','r')]}
+  if(st===5)return holdOn(pl,BAR1)?['','Keep holding ✊']:['',grab('up','r')];
+  if(st===6)return['',coDir(dev,'lr')+' Swing!'];
+  if(st===7){const h1=pl.hands.find(h=>grip(h)&&inRect(h.ax,h.ay,BAR1,24));
+    if(h1)return pl.v.x>120&&pl.v.y<-20?['go',LET+' '+B(side(h1),'rel')+' NOW!']:['',coDir(dev,'lr')+' Swing… wait for it'];
+    return['',grab('right',freeSide()<0?'l':'r')]}
+  if(st===W0+1)return['',coDir(dev,'ur')+' Aim at the wall'];
+  if(st===W0+2)return['','HOLD '+coPush(dev)+' Charge!'];
+  if(st===W0+3){const fh=wallFloor(pl);
+    if(fh.length)return['go',LET+' '+B(side(fh[0]),'rel')+' = JUMP!'];
+    return['',G+' '+B(freeSide()<0?'l':'r',GA)+' on the wall!']}
+  return['','']}
+function coach(t){
+  const pl=players[0];
+  if(!T||!pl||T.ending||T.done||T.swapT>0){if(CO.el)CO.el.classList.remove('on');window.__simScale=1;return}
+  coBuild();const dev=coDev(),st=T.step,el=CO.el;
+  window.__simScale=(st>=5&&st<=7)||st===W0+3?.6:1;              // slow motion where things happen fast
+  // intro (first seconds, mouse / keys / pad; phones have their own intro on the real buttons): which control = which glove
+  if(dev!=='touch'){if(CO.id!==T.id&&st===0){CO.id=T.id;CO.t0=t}
+    const u=window.__thFreeze!=null?window.__thFreeze:(CO.id===T.id?t-CO.t0:99);
+    TH.introAl=u<TH_IN.end?(u<TH_IN.linkIn?0:u<TH_IN.linkIn+.3?(u-TH_IN.linkIn)/.3:u<TH_IN.linkOut?1:Math.max(0,1-(u-TH_IN.linkOut)/.5)):0;
+    thLinks(t,pl,null)}                                           // coloured circles + L / R tags on the gloves (also a short flash on every grab)
+  let r=TH.introAl>0?['',coBtn(dev,'l','')+'<b>= L glove</b><b class="co-p">·</b>'+coBtn(dev,'r','')+'<b>= R glove</b>']:coText(dev,pl);
+  if(st===W0+2&&CO.newId!==T.id){CO.newId=T.id;CO.newT=t;[[520,780],[780,1040],[1040,1560]].forEach((f,k)=>setTimeout(()=>blip(f[0],f[1],.14,'triangle',.13),k*110))}
+  const cls=r[0]+(CO.newId===T.id&&t-CO.newT<3.5?' new':'');
+  if(!r[1]){el.classList.remove('on');return}
+  if(r[1]!==CO.html){CO.html=r[1];CO.in.innerHTML=r[1]}
+  el.classList.add('on');
+  const w=el.offsetWidth,h=el.offsetHeight,s=cam.z*VS,fx=W/2+(pl.p.x-cam.x)*s,fy=H/2+(pl.p.y-cam.y)*s;
+  let tx=fx-w/2,ty=fy+(R+18)*s+16,up=false;                      // right under the frog …
+  if(ty+h>innerHeight-10){ty=fy-(R+ARM)*s-h-16;up=true}           // … or above it when there is no room below
+  tx=Math.max(8,Math.min(innerWidth-w-8,tx));ty=Math.max(8,Math.min(innerHeight-h-8,ty));
+  if(CO.x<0){CO.x=tx;CO.y=ty}else{CO.x+=(tx-CO.x)*.25;CO.y+=(ty-CO.y)*.25}
+  const c2=cls+(up?' up':'');if(c2!==CO.cls){CO.cls=c2;el.className='on '+c2}
+  el.style.transform='translate('+CO.x.toFixed(1)+'px,'+CO.y.toFixed(1)+'px)'}
 
 /* ---------- v83: a gentle reminder in the first 3 campaign levels when the player seems stuck ---------- */
 {const ST={lv:-2,best:1e9,t:0,n:0,show:0};const box=$t('tuthint');
@@ -5322,6 +5558,77 @@ window.__extra={levelsWin,giftWin,tick,reset:()=>{EXS={ads:0,on:false};exSave();
 #taphand .th-hand{position:fixed;left:0;top:0;width:60px;height:60px;transform-origin:25px 3px;filter:drop-shadow(0 5px 3px rgba(0,0,0,.35));will-change:transform,opacity}
 #taphand .th-tip{position:fixed;max-width:min(280px,72vw);padding:8px 14px;border-radius:14px;background:#fdf8ee;color:#1d2a44;font:900 16px/1.25 ui-rounded,"Nunito",system-ui,sans-serif;text-align:center;box-shadow:0 4px 0 rgba(0,0,0,.15),inset 0 0 0 3px #ffc933}
 #taphand .th-tip b{color:#e0457b}
+#taphand.links .th-ring,#taphand.links .th-rip,#taphand.links .th-hand{display:none}
+#taphand.links .th-tip{white-space:nowrap;max-width:none}
+#mcPow.thnew{opacity:1!important;animation:thNewPop .9s cubic-bezier(.2,1.6,.4,1),thNewGlow 1s ease-in-out .9s 3}
+@keyframes thNewPop{0%{transform:scale(0) rotate(-12deg)}60%{transform:scale(1.25) rotate(4deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes thNewGlow{50%{background:#ffb020;border-color:#fff;box-shadow:0 0 0 6px #ffc933,0 0 34px 10px rgba(255,201,51,.9);transform:scale(1.08)}}
+#thnew{position:fixed;z-index:71;pointer-events:none;transform:translateX(-50%);padding:7px 16px;border-radius:999px;background:linear-gradient(135deg,#ffb020,#ff5f6d 60%,#c04ee8);color:#fff;font:900 16px/1.2 ui-rounded,"Nunito",system-ui,sans-serif;white-space:nowrap;box-shadow:0 4px 0 #b23a6b,0 0 18px rgba(255,201,51,.7);animation:thNewTag 3.6s ease forwards}
+#tut .th{display:none!important}
+#taphand .th-tip{display:none!important}
+#coach{position:fixed;left:0;top:0;z-index:72;pointer-events:none;display:none;will-change:transform}
+#coach.on{display:block}
+#coach .co-in{position:relative;display:flex;align-items:center;gap:7px;padding:9px 16px;border-radius:16px;background:#fdf8ee;color:#1d2a44;font:900 20px/1.2 ui-rounded,"Nunito",system-ui,sans-serif;white-space:nowrap;box-shadow:0 5px 0 rgba(0,0,0,.18),inset 0 0 0 3px #ffc933}
+#coach .co-in::before{content:"";position:absolute;left:50%;top:-10px;margin-left:-10px;border:10px solid transparent;border-top:0;border-bottom-color:#ffc933}
+#coach.up .co-in::before{top:auto;bottom:-10px;border-bottom:0;border-top:10px solid #ffc933}
+#coach.warn .co-in{box-shadow:0 5px 0 rgba(0,0,0,.18),inset 0 0 0 3px #ff5d8f;color:#b0244f;white-space:normal;max-width:min(360px,86vw);text-align:center}
+#coach.warn .co-in::before{border-bottom-color:#ff5d8f}#coach.warn.up .co-in::before{border-top-color:#ff5d8f}
+#coach.go .co-in{background:#ffc933;animation:coGo .55s ease-in-out infinite}
+@keyframes coGo{50%{transform:scale(1.12)}}
+#coach .co-new{position:absolute;left:50%;top:-30px;transform:translateX(-50%);padding:3px 11px;border-radius:999px;background:linear-gradient(135deg,#ffb020,#ff5f6d);color:#fff;font:900 13px/1.2 ui-rounded,system-ui,sans-serif;white-space:nowrap;display:none}
+#coach.up .co-new{top:auto;bottom:-30px}
+#coach.new .co-new{display:block}#coach.new .co-in{box-shadow:0 5px 0 rgba(0,0,0,.18),inset 0 0 0 3px #ff5f6d,0 0 20px rgba(255,201,51,.9)}
+#coach i{font-style:normal}
+#coach .co-k{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 6px;box-sizing:border-box;border-radius:7px;background:#fff;border:2px solid #1d2a44;box-shadow:0 3px 0 #1d2a44;font-size:15px;text-transform:uppercase}
+#coach .co-kd{background:#ffc933;animation:coBlink 1s ease-in-out infinite}
+@keyframes coBlink{50%{background:#fff}}
+#coach .co-tb{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;color:#fff;font-size:16px;border:2px solid #1d2a44;box-sizing:border-box}
+#coach .co-push{width:auto;padding:0 10px;border-radius:17px;background:#555c69;font-size:13px}
+#coach .co-ms{display:inline-flex}
+#coach .co-ic{display:inline-flex}
+#coach .co-mv{animation:coMove 1.6s ease-in-out infinite}
+@keyframes coMove{25%{transform:translate(3px,-2px)}50%{transform:translate(0,-4px)}75%{transform:translate(-3px,-2px)}}
+#coach .co-ar{font-size:21px;color:#e0457b}
+#coach .co-p{opacity:.5;margin:0 1px}
+#coach .co-hold{animation:coPress 1.4s ease-in-out infinite}
+@keyframes coPress{0%,15%,100%{transform:translateY(0);filter:none}25%,85%{transform:translateY(3px);filter:brightness(.8)}}
+#coach .co-tap{animation:coTap .9s ease-in-out infinite}
+@keyframes coTap{0%,35%,100%{transform:scale(1)}15%{transform:scale(.78)}}
+#coach .co-rel{animation:coRel .8s ease-in-out infinite}
+@keyframes coRel{50%{transform:translateY(-5px)}}
+@media (prefers-reduced-motion:reduce){#coach *{animation:none!important}}
+#pcctl{position:fixed;left:0;top:0;z-index:69;pointer-events:none;display:none;transform-origin:0 0;padding:10px 14px 8px;border-radius:18px;background:rgba(253,248,238,.95);box-shadow:0 5px 0 rgba(0,0,0,.14),inset 0 0 0 3px #ffc933;font-family:ui-rounded,"Nunito",system-ui,sans-serif;color:#1d2a44}
+#pcctl.on{display:block}
+#pclinks{position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:70;pointer-events:none}
+#pcctl .pc-row{display:flex;align-items:flex-end;justify-content:center;gap:16px}
+#pcctl .pc-keys{display:grid;grid-template-columns:repeat(3,auto);gap:5px;justify-items:center;align-items:center}
+#pcctl b.kc{display:flex;align-items:center;justify-content:center;min-width:34px;height:34px;padding:0 6px;box-sizing:border-box;border-radius:8px;background:#fff;border:2px solid #1d2a44;box-shadow:0 4px 0 #1d2a44;font-size:15px;font-weight:900;text-transform:uppercase;transition:transform .08s,box-shadow .08s,background .08s}
+#pcctl b.kc.hi{border-color:#e0457b;box-shadow:0 4px 0 #e0457b,0 0 0 3px rgba(255,201,51,.8),0 0 14px rgba(255,201,51,.9)}
+#pcctl b.kc.hi.dn{box-shadow:0 1px 0 #e0457b,0 0 0 3px rgba(255,201,51,.8),0 0 18px rgba(255,201,51,1)}
+#pcctl b.kc.dn{transform:translateY(3px);box-shadow:0 1px 0 #1d2a44;background:#ffc933}
+#pcctl b.hk{min-width:46px;height:46px;font-size:18px;color:#fff;border-color:#1d2a44}
+#pcctl b.hk-l{background:#3d9bff}#pcctl b.hk-r{background:#ff7a2e}
+#pcctl b.hk-l.dn{background:#1d5fb8}#pcctl b.hk-r.dn{background:#c24d0d}
+#pcctl .pc-hk{display:flex;flex-direction:column;align-items:center}
+#pcctl .pc-hk2{display:flex;gap:8px}
+#pcctl .pc-hk,#pcctl .pc-keys{display:none}
+#pcctl.kmode .pc-hk{display:flex}#pcctl.kmode .pc-keys{display:grid}#pcctl.kmode .pc-m{display:none}
+#pcctl .pc-kl{grid-column:1/-1;font-size:11px;font-weight:900;letter-spacing:.08em;opacity:.6;margin-top:3px}
+#pcctl .pc-m{display:flex;flex-direction:column;align-items:center}
+#pcctl .pc-m svg{display:block;overflow:visible}
+#pcctl .pm-l{fill:#3d9bff}#pcctl .pm-r{fill:#ff7a2e}
+#pcctl .pm-l.dn{fill:#1d5fb8}#pcctl .pm-r.dn{fill:#c24d0d}
+#pcctl .pm-l.hi,#pcctl .pm-r.hi{stroke:#ffc933;stroke-width:4;animation:pcHi .8s ease-in-out infinite}
+@keyframes pcHi{50%{stroke-width:8}}
+#pcctl .pm-t{font:900 20px ui-rounded,system-ui,sans-serif;fill:#fff;text-anchor:middle}
+#pcctl .pc-hold{position:relative;width:78px;height:14px;margin-top:5px;border-radius:7px;background:rgba(29,42,68,.15);overflow:hidden}
+#pcctl .pc-hold i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2ecc71,#7be3a5)}
+#pcctl .pc-hold::after{content:"HOLD";position:absolute;inset:0;font-size:10px;font-weight:900;line-height:14px;text-align:center;letter-spacing:.12em}
+#pcctl .pc-pow{display:flex;flex-direction:column;align-items:center}
+#pcctl .pc-pow.new b{animation:thNewPop .9s cubic-bezier(.2,1.6,.4,1),thNewGlow 1s ease-in-out .9s 3}
+#pcctl .pc-cap{margin-top:8px;font-size:15px;font-weight:900;line-height:1.3;text-align:center;max-width:320px}
+#pcctl .pc-cap small{font-size:12px;opacity:.8}
+@keyframes thNewTag{0%{opacity:0;transform:translate(-50%,14px) scale(.5)}12%{opacity:1;transform:translate(-50%,0) scale(1.12)}20%{transform:translate(-50%,0) scale(1)}85%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-12px)}}
 </style>
 <style id="ctl-css">
 #ctlwin{position:fixed;inset:0;z-index:170;display:none;align-items:center;justify-content:center;background:rgba(20,28,44,.72);--ff:ui-rounded,"Nunito","Arial Rounded MT Bold",system-ui,sans-serif;font-family:var(--ff)}
