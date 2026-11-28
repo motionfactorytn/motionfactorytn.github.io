@@ -839,7 +839,7 @@ function swxStep(){ // host / single player, every simulation step
     else if(o.type==='door'&&!o.open){
       for(const k of OBS){if(k.type!=='key'||k.link!==o.link||k.by<0||k.used)continue;const q=players[k.by];if(!q||!q.active)continue;
         const cx=Math.max(o.x,Math.min(q.p.x,o.x+o.w)),cy=Math.max(o.y,Math.min(q.p.y,o.y+o.h));
-        if(Math.hypot(q.p.x-cx,q.p.y-cy)<R+16){o.open=true;o.ot=time;doorSet(o);k.used=true;k.by=-1;
+        if(Math.hypot(q.p.x-cx,q.p.y-cy)<(SPC.on?100:R+16)){o.open=true;o.ot=time;doorSet(o);k.used=true;k.by=-1;
           try{[[520,780],[780,1180]].forEach((f,i)=>setTimeout(()=>uiBlip(f[0],f[1],.12,'triangle',.13),i*90))}catch(e){}break}}}}}
 function keyDrop(pl){for(const o of OBS)if(o.type==='key'&&o.by===pl.i&&!o.used)o.by=-1}   // died / respawned with the key → it goes back to its place
 function swxSnap(){const a=[];for(const o of OBS){
