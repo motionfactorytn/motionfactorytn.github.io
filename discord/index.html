@@ -446,7 +446,7 @@ div.mwallet{cursor:default}div.mwallet:hover{transform:none}
 <div class="mwrap" style="--cw:330;--d:.26s;--fl:5.7s;--fr:.5deg;--r0:5deg"><button class="mcard mc-tv" data-mgo="tvs" aria-label="Team Versus"></button></div>
 <div class="mwrap" style="--cw:329;--d:.34s;--fl:4.9s;--fr:-.6deg;--r0:-6deg"><button class="mcard mc-created" data-mgo="credits" aria-label="Created By"></button></div></div>
 </div>
-<div class="mutil"><button id="binvite" type="button" class="mpill minv"><span class="minv-ic">👋</span>Invite friends<b class="minv-b">+5 <i class="coinic"></i></b></button><button data-go="settings" class="mpill">Settings ⚙</button><button id="btut" type="button" class="mpill">Tutorial 🎓</button><button id="bctl" type="button" class="mpill">Controls 🎮</button><button id="bdeflevel" class="mpill hid">Back to campaign</button><button data-go="shop" class="mpill mshop"><span class="msh-ic">🛍️</span>Shop</button></div>
+<div class="mutil"><button id="binvite" type="button" class="mpill minv"><span class="minv-ic">👋</span>Invite friends<b class="minv-b">+5 <i class="coinic"></i></b></button><button id="bspace" type="button" class="mpill">🚀 Space</button><button data-go="settings" class="mpill">Settings ⚙</button><button id="btut" type="button" class="mpill">Tutorial 🎓</button><button id="bctl" type="button" class="mpill">Controls 🎮</button><button id="bdeflevel" class="mpill hid">Back to campaign</button><button data-go="shop" class="mpill mshop"><span class="msh-ic">🛍️</span>Shop</button></div>
 <div id="lvnote" class="note"></div></div></div>
 <div id="tvgames" class="scr hid"><div class="mroot"><div class="vsb hid">VERSUS</div><div class="mgrid" id="tgrid" style="flex-direction:column;align-items:center">
 <div class="mwrap" style="--cw:330;--d:.05s;--fl:5.4s;--r0:-4deg"><button class="mcard mc-bball" data-mgo="tvbb" aria-label="Basketball"></button></div>
@@ -868,12 +868,100 @@ function swDrawDoor(o,a){const x=o.x,y=o.y,w=o.w,h=o.h;ctx.save();ctx.globalAlph
 function swDrawCarried(pl,sx,sy,t){for(const o of OBS){if(o.type!=='key'||o.by!==pl.i||o.used)continue;
   const u=Math.min(1,(t-o.pt)/.35),pop=u<1?1+.5*Math.sin(u*Math.PI):1,hy=sy-R-46-((cosOf(pl).cup||cosOf(pl).fit)?14:0);   // flies up onto the head with a little pop
   const kx=o.x+(sx-o.x)*u,ky=o.y+(hy-o.y)*u;swDrawKey(kx,ky+Math.sin(t*4)*2,SWL[o.link],.75*pop,Math.sin(t*3)*.12)}}
+/* ===== SPACE MODE (Discord test) =====
+   Level "space":true -> no gravity: the joystick / ZQSD moves the rocket in 4 directions (it speeds up / slows down smoothly + floats a little),
+   it leans left / right while moving. The frog sits in the glass dome. L / R: that glove reaches for the nearest coin (no platform grabbing in space).
+   Keys, doors, buttons, coins, saws and the goal zone work as usual. 3-2-1 at the start: nobody moves, the ball machines wait.
+   BALL MACHINE ("ballgun"): every "every" s it throws 4 balls ("gap" s apart, going round): FAST orange balls in + directions, next time SLOW purple balls in X directions.
+   A ball vanishes on a platform; a ball that hits a rocket sends it back to its start point (1 s blinking = safe).
+   The host decides everything; the other players get the balls in the snapshot (Z). */
+const SPC={on:false,balls:[],fx:[],cd:3},SPC_SPD=430,SPC_BR=15;
+function spcRead(L){SPC.on=!!(L&&L.space===true);SPC.balls=[];SPC.fx=[]}
+function spcReset(){SPC.balls=[];SPC.fx=[];for(const o of OBS)if(o.type==='ballgun'){o.next=SPC.cd;o.q=[];o.wave=0;o.shot=-9}for(const q of players)q.spcInv=0}
+function spcFly(pl,inp,dt){const v=pl.v;let mx=0,my=0;
+  if(inp.st&&time>=SPC.cd){const a=aim(pl),m=(pl.kind==='touch'||pl.kind==='pad')?Math.min(1,pl.stick.m):1;mx=a.dx*m;my=a.dy*m}
+  const k=1-Math.exp(-2.6*dt),tx=mx*SPC_SPD,ty=my*SPC_SPD+Math.sin(time*2.4+pl.i*1.7)*20;   // smooth start / stop + a gentle float
+  v.x+=(tx-v.x)*k;v.y+=(ty-v.y)*k}
+function spcRestPt(pl,h){const a=pl.tilt||0,x=h.side*R*1.55,y=R*1.3;return[pl.p.x+x*Math.cos(a)-y*Math.sin(a),pl.p.y+x*Math.sin(a)+y*Math.cos(a)]}   // glove parked under the saucer edge
+function spcHide(pl,h){if(!SPC.on||h.g)return false;const q=spcRestPt(pl,h);return Math.hypot(h.x-q[0],h.y-q[1])<16}   // parked glove: no arm drawn (short connector instead)
+function spcHands(pl,dt){const k=Math.min(1,dt*14);
+  for(const h of pl.hands){if(h.g)continue;const sh=shoulderOf(pl,h),rp=spcRestPt(pl,h);let tx=rp[0],ty=rp[1];
+    if(h.want&&!h.c){let bd=ARM+COIN_REACH-6,bc=null;
+      for(const c of COINS){if(c.st>1||c.holder>=0)continue;const d=Math.hypot(c.x-sh[0],c.y-sh[1]);if(d<bd){bd=d;bc=c}}
+      if(bc){const d=Math.hypot(bc.x-sh[0],bc.y-sh[1])||1,r=Math.min(d,ARM);tx=sh[0]+(bc.x-sh[0])/d*r;ty=sh[1]+(bc.y-sh[1])/d*r}}
+    const ox=tx-pl.p.x,oy=ty-pl.p.y;   // own smoothed position RELATIVE to the rocket (it moves with it, no lag); the normal aiming code's h.x / h.y is overridden
+    if(h.spx===undefined||Math.hypot(h.spx-ox,h.spy-oy)>400){h.spx=ox;h.spy=oy}
+    h.spx+=(ox-h.spx)*k;h.spy+=(oy-h.spy)*k;h.x=pl.p.x+h.spx;h.y=pl.p.y+h.spy}}
+function spcTilt(pl){const t=Math.max(-1,Math.min(1,pl.v.x/SPC_SPD))*.24;pl.tilt=t;pl.ang=t;pl.w=0}
+function spcHit(pl){SPC.fx.push({x:pl.p.x,y:pl.p.y,t:time,big:1});sfx(520,140,.3,'square',.13);place(pl);pl.spcInv=time+1}
+function spcStep(dt,act){if(!SPC.on||net.role==='client')return;
+  for(const o of OBS){if(o.type!=='ballgun')continue;
+    if(time>=o.next){const fast=o.wave%2===0,a0=fast?0:Math.PI/4;for(let j=0;j<4;j++)o.q.push({t:o.next+j*o.gap,a:a0+j*Math.PI/2,fast});o.wave++;o.next+=o.every}
+    while(o.q.length&&time>=o.q[0].t){const s=o.q.shift(),sp=s.fast?o.fast:o.slow;
+      SPC.balls.push({x:o.x+Math.cos(s.a)*42,y:o.y+Math.sin(s.a)*42,vx:Math.cos(s.a)*sp,vy:Math.sin(s.a)*sp,f:s.fast?1:0,life:0});o.shot=time;if(SPC.balls.length>80)SPC.balls.shift()}}
+  const m=SPC_BR*.6;
+  for(let i=SPC.balls.length-1;i>=0;i--){const b=SPC.balls[i];b.x+=b.vx*dt;b.y+=b.vy*dt;b.life+=dt;
+    let gone=b.life>12||b.x<LB.x0-400||b.x>LB.x1+400||b.y<LB.y0-400||b.y>LB.y1+400;
+    if(!gone)for(const r of P){if(r[0]>1e8)continue;if(r.tri?triCol(r,b.x,b.y,m):(b.x>r[0]-m&&b.x<r[0]+r[2]+m&&b.y>r[1]-m&&b.y<r[1]+r[3]+m)){gone=true;break}}
+    if(!gone)for(const pl of act){if(pl.spcInv>time)continue;const ex=(b.x-pl.p.x)/(R*2.1+SPC_BR*.7),ey=(b.y-pl.p.y-R*.2)/(R*1.45+SPC_BR*.7);   // the rocket = an ellipse (saucer + dome)
+      if(ex*ex+ey*ey<1){spcHit(pl);gone=true;break}}
+    if(gone){SPC.fx.push({x:b.x,y:b.y,t:time,f:b.f});SPC.balls.splice(i,1)}}
+  SPC.fx=SPC.fx.filter(e=>time-e.t<.5)}
+function spcSnap(){return SPC.on?SPC.balls.map(b=>[Math.round(b.x),Math.round(b.y),b.f]):0}
+function spcNet(m){if(net.role!=='client'||!Array.isArray(m.Z))return;SPC.balls=m.Z.map(a=>({x:a[0],y:a[1],f:a[2]}))}
+function spcDraw(){if(!SPC.on)return;const t=curT();
+  for(const o of OBS){if(o.type!=='ballgun')continue;const kick=t-o.shot<.14?1-(t-o.shot)/.14:0;
+    ctx.save();ctx.translate(o.x,o.y);
+    ctx.fillStyle='#bfe3ec';ctx.beginPath();ctx.arc(0,0,40+kick*6,0,7);ctx.fill();
+    ctx.fillStyle='#0f5566';ctx.strokeStyle='#1d2a44';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,27,0,7);ctx.fill();ctx.stroke();
+    ctx.rotate(t*1.5);ctx.fillStyle='rgba(255,255,255,.35)';ctx.beginPath();ctx.arc(-9,-9,7,0,7);ctx.fill();ctx.restore()}
+  for(const b of SPC.balls){ctx.fillStyle=b.f?'#f4a742':'#a9a4f5';ctx.strokeStyle='#1d2a44';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(b.x,b.y,SPC_BR,0,7);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.arc(b.x-4,b.y-5,4,0,7);ctx.fill()}
+  for(const e of SPC.fx){const u=(t-e.t)/.5;if(u<0||u>1)continue;ctx.save();ctx.globalAlpha=1-u;ctx.strokeStyle=e.big?'#ff5d5d':'#ffffff';ctx.lineWidth=4;
+    ctx.beginPath();ctx.arc(e.x,e.y,(e.big?30:10)+u*(e.big?70:26),0,7);ctx.stroke();ctx.restore()}
+  if(t<SPC.cd+.7){const n=Math.max(1,Math.ceil(SPC.cd-t)),txt=t<SPC.cd?String(n):'GO!',u=t<SPC.cd?1-((SPC.cd-t)-(n-1)):(t-SPC.cd)/.7,s=(1.3-.3*Math.min(1,u*4))/cam.z;
+    ctx.save();ctx.translate(cam.x,cam.y-VH*.2/cam.z);ctx.scale(s,s);ctx.globalAlpha=t<SPC.cd?1:Math.max(0,1-u);
+    ctx.font='900 110px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';ctx.lineWidth=14;ctx.strokeStyle='#1d2a44';ctx.fillStyle=t<SPC.cd?'#ffd23f':'#7dff9a';
+    ctx.strokeText(txt,0,0);ctx.fillText(txt,0,0);ctx.restore()}}
+function spcDrawRocket(pl,sx,sy){const t=curT();if(pl.spcInv>time&&Math.floor(t*12)%2)return;
+  ctx.save();ctx.translate(sx,sy);ctx.rotate(pl.tilt||0);
+  for(const h of pl.hands)if(spcHide(pl,h)){ctx.strokeStyle='#4a5063';ctx.lineWidth=6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(h.side*R*1.15,R*.75);ctx.lineTo(h.side*R*1.5,R*1.2);ctx.stroke()}   // short legs to the parked gloves
+  ctx.fillStyle='rgba(200,240,255,.22)';ctx.strokeStyle='rgba(255,255,255,.8)';ctx.lineWidth=3;   // glass dome over the frog
+  ctx.beginPath();ctx.ellipse(0,R*.3,R*1.42,R*1.62,0,Math.PI,0);ctx.fill();ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,.65)';ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(0,R*.3,R*1.15,R*1.35,0,-2.55,-2.0);ctx.stroke();
+  const y=R*.62;   // the saucer
+  ctx.fillStyle='#0f6b85';ctx.strokeStyle='#1d2a44';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(0,y,R*2.15,R*.62,0,0,7);ctx.fill();ctx.stroke();
+  ctx.fillStyle='#1a87a6';ctx.beginPath();ctx.ellipse(0,y-R*.2,R*1.7,R*.28,0,0,7);ctx.fill();
+  for(let i=0;i<5;i++){const on=(Math.floor(t*4)+i)%2;ctx.fillStyle=on?'#ffe08a':'#f0a93a';ctx.beginPath();ctx.arc((i-2)*R*.72,y+R*.14,4.5,0,7);ctx.fill()}
+  ctx.restore()}
+
+/* menu button "🚀 Space" (Discord test): play the built-in test level, or load a level file made with the Space Level Editor */
+const SPC_TEST="{\"format\":\"blobswing-level\",\"version\":3,\"name\":\"space test\",\"space\":true,\"platforms\":[[-700,-500,1900,40,\"s1\"],[-700,560,1900,40,\"s1\"],[-700,-500,40,1100,\"s1\"],[1160,-500,40,1100,\"s1\"],[300,150,200,30,\"s2\"]],\"goal\":{\"x\":1050,\"y\":-380},\"goalZone\":{\"x\":950,\"y\":-460,\"w\":200,\"h\":180},\"start\":{\"x\":-560,\"y\":400,\"gap\":80},\"camera\":{\"x\":250,\"y\":50,\"w\":2100,\"fixed\":true},\"obstacles\":[{\"type\":\"ballgun\",\"x\":250,\"y\":-120,\"every\":2.5,\"gap\":0.12,\"fast\":650,\"slow\":300},{\"type\":\"key\",\"x\":-500,\"y\":-300,\"link\":\"B\"},{\"type\":\"door\",\"x\":880,\"y\":-460,\"w\":30,\"h\":260,\"link\":\"B\"}],\"coins\":[{\"x\":-300,\"y\":300,\"rot\":0}]}";
+function spcPlay(L){if(!L||L.format!=='blobswing-level'||!Array.isArray(L.platforms)){alert('This is not a Crazy Frogs level file.');return}
+  try{L.space=true;netStop();customLevel=true;LV.list=[JSON.stringify(L)];LV.i=0;applyLevel(L,true);lvNote('Custom levels: '+levelName);$('msg').style.display='none';show('play')}catch(e){alert('This level could not be loaded: '+e.message)}}
+function spcMenu(){let d=document.getElementById('spcbox');if(d){d.remove();return}
+  const B='display:block;width:100%;margin:6px 0;padding:11px;border:0;border-radius:12px;font:800 15px system-ui,sans-serif;cursor:pointer;';
+  d=document.createElement('div');d.id='spcbox';d.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,20,40,.55);display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif';
+  d.innerHTML='<div style="background:#fff;border-radius:18px;padding:18px 20px;width:min(340px,86vw);text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.35)">'
+   +'<div style="font:900 22px system-ui,sans-serif;color:#1d2a44">🚀 SPACE (test)</div>'
+   +'<p style="color:#55607a;font-size:13px;margin:8px 0 12px">Fly your rocket with the joystick / ZQSD.<br>L / R grab coins · avoid the balls!</p>'
+   +'<button id="spcgo" style="'+B+'background:#2fbf71;color:#fff">Play the test level</button>'
+   +'<button id="spcfile" style="'+B+'background:#3da9fc;color:#fff">Load a space level (.json)</button>'
+   +'<button id="spcx" style="'+B+'background:#e6edf8;color:#1d2a44">Close</button>'
+   +'<input id="spcin" type="file" accept=".json,application/json" style="display:none"></div>';
+  document.body.appendChild(d);
+  d.querySelector('#spcgo').onclick=()=>{d.remove();spcPlay(JSON.parse(SPC_TEST))};
+  d.querySelector('#spcfile').onclick=()=>d.querySelector('#spcin').click();
+  d.querySelector('#spcin').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{d.remove();let L=null;try{L=JSON.parse(t)}catch(x){}spcPlay(L)})};
+  d.querySelector('#spcx').onclick=()=>d.remove();d.onclick=e=>{if(e.target===d)d.remove()}}
+document.addEventListener('click',e=>{if(e.target&&e.target.id==='bspace')spcMenu()});
 function mkObs(o,skins){
   const n=(v,d)=>{v=Number(v);return isFinite(v)?v:d},col=(v,d)=>/^#[0-9a-f]{3,8}$/i.test(String(v))?String(v):d;
   {const t=o&&o.type,x=n(o&&o.x,0),y=n(o&&o.y,0);
    if(t==='button'){const r=[x,y+BTN_H*.3,BTN_W,BTN_H*.7];r.sk=null;r.mv=true;return{type:t,x,y,link:swLink(o.link),r,pressed:false,pt:-9}}
    if(t==='tmover'){const r=[x,y,Math.max(4,n(o.w,160)),Math.max(4,n(o.h,24))];r.sk=skins[o.skin]||null;r.mv=true;
      return{type:t,x,y,w:r[2],h:r[3],x2:n(o.x2,x),y2:n(o.y2,y),speed:Math.max(1,n(o.speed,160)),link:swLink(o.link),sk:r.sk,r,t0:-1}}
+   if(t==='ballgun')return{type:t,x,y,every:Math.max(.5,n(o.every,2.5)),gap:Math.max(0,n(o.gap,.12)),fast:Math.max(50,n(o.fast,650)),slow:Math.max(30,n(o.slow,300)),next:SPC.cd,q:[],wave:0,shot:-9};
    if(t==='key')return{type:t,x,y,link:swLink(o.link),by:-1,used:false,pt:-9};
    if(t==='door'){const r=[x,y,Math.max(8,n(o.w,30)),Math.max(8,n(o.h,220))];r.sk=null;r.mv=true;return{type:t,x,y,w:r[2],h:r[3],link:swLink(o.link),r,open:false,ot:-9}}}
   const t=o&&o.type;if(!t)return null;
@@ -987,7 +1075,7 @@ function applyLevel0(L,doReset){
   COINS=(Array.isArray(L.coins)?L.coins:[]).slice(0,8).filter(o=>o&&isFinite(Number(o.x))&&isFinite(Number(o.y))).map(coinMk);cfx=[];coinWin=false;gunsLoad(L.guns);swordsLoad(L.swords);
   {const z=L.deathZone;DZ=(z&&[z.x0,z.y0,z.x1,z.y1].every(v=>isFinite(Number(v)))&&Number(z.x1)>Number(z.x0)&&Number(z.y1)>Number(z.y0))?{x0:Number(z.x0),y0:Number(z.y0),x1:Number(z.x1),y1:Number(z.y1)}:null}
   GOAL.x=g.x;GOAL.y=g.y;STARTS=starts;GZ=gz;CAMC=cam;BG=bg;levelName=String(L.name||'Level');curLevel=(L===DEFAULT_LEVEL)?null:L;
-  START.x=starts[0].x;START.y=starts[0].y;START.gap=starts[1].x-starts[0].x;tvRead(L);ctfRead(L);swRead(L);
+  START.x=starts[0].x;START.y=starts[0].y;START.gap=starts[1].x-starts[0].x;tvRead(L);ctfRead(L);swRead(L);spcRead(L);
   let a=1e9,bb=-1e9,cc=1e9,d=-1e9;
   const ext=r=>{a=Math.min(a,r[0]);bb=Math.max(bb,r[0]+r[2]);cc=Math.min(cc,r[1]);d=Math.max(d,r[1]+r[3])};
   for(const r of pl)ext(r);for(const w of WIRES)ext([w.x-w.L,w.y,2*w.L,w.L]);for(const o of OBS)if(o.type==='mover'||o.type==='tmover'){ext([o.x,o.y,o.w,o.h]);ext([o.x2,o.y2,o.w,o.h])}else if(o.type==='blinker'||o.type==='door')ext([o.x,o.y,o.w,o.h]);else if(o.type==='button')ext([o.x,o.y,BTN_W,BTN_H]);
@@ -1014,7 +1102,7 @@ function mk(i){return{i,kind:'kb',active:false,p:{x:0,y:0},v:{x:0,y:0},power:0,a
 function place(pl){ctfPlace(pl);keyDrop(pl);coinDrop(pl);gunDrop(pl);swordDrop(pl);pl.gunLock=0;pl.swordLock=0;const ss=(TV.on&&tvSpawn(pl.i))||STARTS[pl.i]||STARTS[5];pl.p.x=ss.x;pl.p.y=ss.y;pl.v.x=pl.v.y=0;pl.power=0;pl.ang=0;pl.tilt=0;pl.hg=0;pl.rod=false;pl.rodT=0;pl.aU=0;pl.dU=0;pl.sig=null;pl.w=0;pl.wt=0;pl.tgt=null;pl.cn=null;pl.mot=false;
   for(const h of pl.hands){h.g=false;h.t=null;h.jm=null;h.J=false;h.x=pl.p.x;h.y=pl.p.y}
   for(const q of players)for(const h of q.hands)if(h.t===pl){h.g=false;h.t=null;h.th=null}}
-function reset(){VSX.win=-1;players=[...Array(N)].map((_,i)=>mk(i));players.forEach(place);if(net.role==='host')players.forEach(pl=>{pl.active=pl.i===0||!!net.conns[pl.i];pl.kind=pl.i?'remote':'kb'});time=0;lastTimeStr='';won=false;ftReset();swxReset();coinsReset();gunsReset();swordsReset();wiresReset();splats=[];gfx=[];hideVictory();
+function reset(){VSX.win=-1;players=[...Array(N)].map((_,i)=>mk(i));players.forEach(place);if(net.role==='host')players.forEach(pl=>{pl.active=pl.i===0||!!net.conns[pl.i];pl.kind=pl.i?'remote':'kb'});time=0;lastTimeStr='';won=false;ftReset();swxReset();spcReset();coinsReset();gunsReset();swordsReset();wiresReset();splats=[];gfx=[];hideVictory();
   document.getElementById('msg').style.display='none';cam.x=CAMC.x;cam.y=CAMC.y;cam.z=VW/CAMC.w;otime=0;updObs(0);status();tvReset();ctfReset();flReset()}
 function rng(s){return()=>{s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function spawnSplash(x,y,vx,vy,ci,seed){
@@ -1425,7 +1513,7 @@ function step(dt){
         {const ddx=h.x-shx,ddy=h.y-shy,dd=Math.hypot(ddx,ddy);if(dd>REACH){h.x=shx+ddx/dd*REACH;h.y=shy+ddy/dd*REACH}}
         if(blockedBy(shx,shy,h.x,h.y)){const rt=routeArm(shx,shy,h.x,h.y,0);if(!rt||rt.len>ARM+8){clipHand(h,{x:shx,y:shy});if(blockedBy(shx,shy,h.x,h.y)){h.x=shx;h.y=shy}}}
         if(h.want&&!h.c&&!(pl.gunLock>0||pl.swordLock>0)){
-          for(const r2 of P){const e=edgeHit(h.x,h.y,r2,15);if(e){h.g=true;h.J=false;h.jm=null;h.t=null;h.ax=h.x;h.ay=h.y;h.pr=r2.mv?r2:null;if(h.pr){h.pox=h.x-r2[0];h.poy=h.y-r2[1]}break}}
+          if(!SPC.on)for(const r2 of P){const e=edgeHit(h.x,h.y,r2,15);if(e){h.g=true;h.J=false;h.jm=null;h.t=null;h.ax=h.x;h.ay=h.y;h.pr=r2.mv?r2:null;if(h.pr){h.pox=h.x-r2[0];h.poy=h.y-r2[1]}break}}
           if(!h.g&&!swGrab(h))wireGrab(h);
           if(!h.g){// 1) any point on another player's arm / hand
             let best=null,bd=HR+8;
@@ -1450,6 +1538,7 @@ function step(dt){
         }
       }
     }
+    if(SPC.on)spcHands(pl,dt);
     const grabbed=pl.hands.filter(h=>h.g),free=!grabbed.length;
     // ONE-HAND PIVOT (revolute joint): exactly one hand on a platform = the hand is a fixed pivot, the body is a rigid arm (length rodL) swinging around it.
     // Active while the stick is pushed, and kept while the body is still swinging fast (angular momentum), so it can go over the top of the bar.
@@ -1488,7 +1577,7 @@ function step(dt){
       const imp=300+pl.power*900;v.x+=dx*imp;v.y+=dy*imp;pl.power=0;
     }else if(swAsst()&&prevStatic&&free&&swHolds(pl))swHoldJump(pl,a,inp); // Swing Wire Ball: ball in one glove, the other let go of its platform / wire = the same release jump, aimed with the stick; the ball stays in the glove and the charge is KEPT for the throw
     pl.mot=false; // no motor: the grip is the pivot, gravity + momentum do the swinging
-    v.y+=G*dt;
+    if(SPC.on)spcFly(pl,inp,dt);else v.y+=G*dt;
     { // limited assist only (stick push / reel-in): total force is capped far below gravity -> no hovering, no steering the body angle
       let fx=0,fy=0,cap=ASTMAX;
       if(pl._sw){fx=pl._sw.x*AST*pl._sw.k;fy=pl._sw.y*AST*pl._sw.k}
@@ -1589,7 +1678,7 @@ function step(dt){
   }
   for(const pl of act)for(const h of pl.hands)if(h.g&&h.J&&h.t&&h.pjx!==undefined)jUncross(h); // v87: the ropes may have pulled the glove joint into / through a platform
   for(const pl of act){
-    bodyRot(pl,dt);updTilt(pl,dt);
+    bodyRot(pl,dt);updTilt(pl,dt);if(SPC.on)spcTilt(pl);
     pl.v.x*=Math.pow(0.55,dt*(pl.touch?3:0.15));pl.v.y*=Math.pow(0.9,dt);
     if(pl.hands.some(h=>h.g)){const gd=Math.exp(-0.25*dt);pl.v.x*=gd;pl.v.y*=gd} // a little rope friction
     if(pl.rod){const gd=Math.exp(-0.5*dt),sp=Math.hypot(pl.v.x,pl.v.y);pl.v.x*=gd;pl.v.y*=gd;if(sp>RODSPD){pl.v.x*=RODSPD/sp;pl.v.y*=RODSPD/sp}}
@@ -1606,7 +1695,7 @@ function step(dt){
       if(inside)pl.done=true;
       else if(pl.done){const cx=Math.max(GZ.x,Math.min(pl.p.x,GZ.x+GZ.w)),cy=Math.max(GZ.y,Math.min(pl.p.y,GZ.y+GZ.h));if(Math.hypot(pl.p.x-cx,pl.p.y-cy)>=R)pl.done=false}}
   }
-  coinStep(dt,act);gunStep(dt,act);swordStep(dt,act);
+  spcStep(dt,act);coinStep(dt,act);gunStep(dt,act);swordStep(dt,act);
   if(TV.on){tvStep(dt,act);ctfStep(dt,act);flStep(dt,act)}
   else if(vsOn){const w=vsPick(act);if(w){won=true;coinWin=false;gunsEnd();swordsEnd();vsAward(w);startVictory(false)}} // VERSUS: the first player inside the zone ends the round (won blocks any second winner)
   else if(act.length&&act.every(q=>q.done)){won=true;coinWin=coinsDelivered();if(coinWin)walletGain(1);
@@ -2495,7 +2584,7 @@ function draw(){
   ctx.save();ctx.translate(W/2,H/2);ctx.scale(cam.z*VS,cam.z*VS);ctx.translate(-cam.x,-cam.y);
   if(BG&&BG.fit==='world'&&BG.img){const im=frameSrc(BG.img,BG.frames);if(im)ctx.drawImage(im,BG.rect.x,BG.rect.y,BG.rect.w,BG.rect.h)}
   for(const r of P){if(r.mv)continue;drawPlat(r,r.sk,plat)}
-  drawObs(ink);
+  drawObs(ink);spcDraw();
   if(!TV.on){ctx.fillStyle=ink;ctx.fillRect(GOAL.x-2,GOAL.y-30,4,60);
   ctx.fillStyle='#2fbf71';ctx.beginPath();ctx.moveTo(GOAL.x+2,GOAL.y-30);ctx.lineTo(GOAL.x+34,GOAL.y-18);ctx.lineTo(GOAL.x+2,GOAL.y-6);ctx.fill()}
   if(TV.on)tvDrawGoals();else drawZone();
@@ -2515,7 +2604,7 @@ function draw(){
       ctx.strokeStyle=blob;ctx.lineWidth=11;ctx.beginPath();ctx.moveTo(shx,shy);
       if(AP.path){for(let i=1;i<AP.path.length-1;i++)ctx.lineTo(AP.path[i][0],AP.path[i][1]);ctx.lineTo(h.x,h.y)}
       else ctx.quadraticCurveTo(2*tx-(shx+h.x)/2,2*ty-(shy+h.y)/2,h.x,h.y); // smooth curve: straight when taut, a hanging curve when slack
-      ctx.stroke();
+      if(!spcHide(pl,h))ctx.stroke();
       {const gn=gunHeld(pl,h),sw=swordHeld(pl,h);if(gn&&!sw)gunHeldDraw(gn,h,gloveAng(pl,h,sx,sy));if(sw&&!gn)swordHeldDraw(sw,h,gloveAng(pl,h,sx,sy))} /* one weapon per hand: sword or gun */const gi=gloveImg(h);
       if(gi){const pre=AP.path?AP.path[AP.path.length-2]:[2*tx-(shx+h.x)/2,2*ty-(shy+h.y)/2];gloveDraw(gi,h,pre[0],pre[1])}
       else{ctx.strokeStyle=ink;ctx.fillStyle=h.g?'#ffe9b0':blob;ctx.lineWidth=2;ctx.beginPath();ctx.arc(h.x,h.y,h.g?12:10,0,7);ctx.fill();ctx.stroke()}
@@ -2527,7 +2616,7 @@ function draw(){
       charGlowDraw(FI,blob,ww,hh);cosDraw(pl,-ww/2,-hh/2+2,ww/FI.naturalWidth);ctx.restore();
     }else{ctx.fillStyle=blob;ctx.strokeStyle=ink;ctx.lineWidth=3;ctx.beginPath();ctx.arc(sx,sy,R,0,7);ctx.fill();ctx.stroke();
       ctx.save();ctx.translate(sx,sy);ctx.rotate(pl.ang);ctx.fillStyle=ink;ctx.beginPath();ctx.arc(-9,-8,3.5,0,7);ctx.arc(9,-8,3.5,0,7);ctx.fill();ctx.restore()}
-    drawStains(pl);
+    drawStains(pl);if(SPC.on)spcDrawRocket(pl,sx,sy);
     if(OBS.length)swDrawCarried(pl,sx,sy,curT()); // v97: the key on the head
     ctx.fillStyle=ink;ctx.font='bold 12px system-ui,sans-serif';ctx.textAlign='center';
     gunStars(pl);swordStars(pl);ctx.fillText('P'+(pl.i+1)+(pl.done?' ✓':''),p.x,p.y-R-18-((cosOf(pl).cup||cosOf(pl).fit)?13:0));
@@ -3109,10 +3198,10 @@ function dcLobby(){const b=document.getElementById('bstartnow');if(!b)return;con
   const lc=$('lcode');if(lc){lc.style.fontSize=on?'calc(26*var(--u))':'';lc.style.letterSpacing=on?'.08em':''} // the Discord code is longer: smaller so it fits the panel
   if(on)$('lhint').textContent=net.role==='host'?'Friends in this Discord activity join automatically. Press Start now when everybody is here.':'You are in the room of your Discord friends. The host starts the game.'}
 document.getElementById('bstartnow').onclick=()=>{if(net.role!=='host'||net.started||net.starting||cnt()<2)return;net.cap=cnt();lobbyBroadcast();checkFull()};
-function snap(){return{k:'s',X:swxSnap(),T:tvSnap(),F:ctfSnap(),FL:flSnap(),vs:vsOn?[VSX.win,VSX.round,...VSX.pts]:0,ch:chList(),cs:cosList(),tm:r1(time),w:won?(coinWin?2:1):0,C:coinSnap(),G:gunSnap(),S:swordSnap(),W:wiresSnap(),b:best,P:players.map(q=>q.active?[r1(q.p.x),r1(q.p.y),r1(q.v.x),r1(q.v.y),Math.round(q.power*100)/100,q.done?1:0,q.inp.pow?1:0,
+function snap(){return{k:'s',X:swxSnap(),Z:spcSnap(),T:tvSnap(),F:ctfSnap(),FL:flSnap(),vs:vsOn?[VSX.win,VSX.round,...VSX.pts]:0,ch:chList(),cs:cosList(),tm:r1(time),w:won?(coinWin?2:1):0,C:coinSnap(),G:gunSnap(),S:swordSnap(),W:wiresSnap(),b:best,P:players.map(q=>q.active?[r1(q.p.x),r1(q.p.y),r1(q.v.x),r1(q.v.y),Math.round(q.power*100)/100,q.done?1:0,q.inp.pow?1:0,
   ...q.hands.flatMap(h=>[r1(h.x),r1(h.y),h.g?1:0]),Math.round(q.ang*100)/100,Math.round((q.tilt||0)*100)/100,Math.round((q.hg||0)*100)/100]:0)}}
 function applySnap(m){FT.snapsIn=(FT.snapsIn||0)+1; // (perf overlay: snapshots received)
-  tvNet(m);ctfNet(m);flNet(m);swxNet(m);
+  tvNet(m);ctfNet(m);flNet(m);swxNet(m);spcNet(m);
   if(Array.isArray(m.vs)){vsOn=true;VSX.win=m.vs[0];VSX.round=m.vs[1]||0;VSX.pts=m.vs.slice(2,8)}
   if(Array.isArray(m.ch))CHS=m.ch.slice(0,6);
   if(Array.isArray(m.cs))COSL=m.cs.slice(0,6).map(a=>cosClean(a&&a[0],a&&a[1],a&&a[2]));
